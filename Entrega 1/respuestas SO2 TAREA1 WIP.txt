@@ -1,0 +1,144 @@
+1 - Una de las razones es que el conjunto de instrucciones es distinto para los procesadores MIPS.
+  Además, podemos generar interrupciones virtuales para este procesador y cambiar al modo
+  privilegiado para ejecutar instrucciones de NACHOS.
+
+2 - En mmu.hh vemos que:
+
+    const unsigned SECTOR_SIZE = 128;
+    const unsigned PAGE_SIZE = SECTOR_SIZE;
+    const unsigned NUM_PHYS_PAGES = 32;
+    const unsigned MEMORY_SIZE = NUM_PHYS_PAGES * PAGE_SIZE;
+
+  Entonces el tamano de la memoria es:
+
+    MEMORY_SIZE = 32 * 128 = 4KiB
+
+3 - La cantidad de paginas o su tamaño.
+
+4 - En disk.hh vemos que:
+
+    const unsigned SECTOR_SIZE = 128;       ///< Number of bytes per disk sector.
+    const unsigned SECTORS_PER_TRACK = 32;  ///< Number of sectors per disk
+    const unsigned NUM_TRACKS = 32;         ///< Number of tracks per disk.
+    const unsigned NUM_SECTORS = SECTORS_PER_TRACK * NUM_TRACKS;
+
+  Entonces, la cantidad de bytes por disco es:
+
+    NUM_SECTORS * SECTOR_SIZE = 32 * 32 * 128 = 128KiB
+
+5 - 58 instrucciones distintas
+
+6 - La funcion main se define en el directorio userland para varias utilidades como tiny_shell,
+  touch, echo, etc., en el directorio bin para otras utilidades como un cliente FUSE, un conversor
+  de NOFF a COFF, un interprete, etc. y en el directorio threads se define la funcion main de NACHOS
+  que es incluida en el ejecutable de otros directorios como userland (podemos comprobarlo viendo la
+  salida de make depend).
+
+7 - Se da un listado de las funciones llamadas por main (compilado en el directorio threads) y las
+llamadas por estas
+
+- Initialize
+  - ASSERT
+  - SystemDep::RandomInit
+  - debug.SetFlags
+  - debug.SetOpts
+  - interrupt->Enable
+  - SystemDep::CallOnUserAbort
+  - preemptiveScheduler->SetUp
+
+- DEBUG
+  - debug.Print
+  - ASSERT
+  - Debug::IsEnabled
+  - SystemDep::Delay
+
+- SysInfo
+
+- PrintInfo
+
+- ThreadTest
+  - Choose
+  - Run
+
+- interrupt->Halt
+  - stats->Print
+  - Cleanup
+
+- currentThread->Finish
+  - interrupt->SetLevel
+  - ASSERT
+  - DEBUG
+  - Sleep
+
+8 - Sobre ASSERT: Si `condition` es false, printea un mensaje y dumpea core.  Util para documentar
+suposiciones en el codigo.
+
+Sobre DEBUG: Toma una flag, un formato estilo printf y argumentos para imprimir, y pasa estos a
+'debug.Print', junto al archivo actual, la linea actual, y la funcion actual. 'Debug::Print' imprime
+toda o partes de esta informacion en stderr, de acuerdo a su configuracion.
+
+9 - El efecto de las banderas es categorizar los mensajes de depuración en distintas categorias
+como: mensajes del manejador de interrupciones o mensajes de los hilos. Al ejecutar NACHOS se puede
+especificar que tipo de mensajes queremos recibir. Con "-d" se activan todas los mensajes y "-d t" o
+"-d i" activan solo una categoria de mensajes. Tambien se pueden activar varias categorias.
+
+10 - En varios makefiles:
+
+En 'network/Makefile':
+DEFINES      = -DUSER_PROGRAM -DVMEM -DFILESYS_NEEDED -DFILESYS -DNETWORK
+
+En 'filesys/Makefile':
+DEFINES      = -DUSER_PROGRAM -DVMEM -DFILESYS_NEEDED -DFILESYS
+
+En 'userprog/Makefile':
+DEFINES      = -DUSER_PROGRAM -DFILESYS_NEEDED -DFILESYS_STUB -DDFS_TICKS_FIX
+
+En 'vmem/Makefile':
+DEFINES      = -DUSER_PROGRAM  -DFILESYS_NEEDED -DFILESYS_STUB -DVMEM -DUSE_TLB -DDFS_TICKS_FIX
+
+En particular, 'USER_PROGRAM' se define en:
+- 'network/Makefile'
+- 'filesys/Makefile'
+- 'userprog/Makefile'
+- 'vmem/Makefile'
+
+En particular, 'FILESYS_NEEDED' se define en:
+- 'network/Makefile'
+- 'filesys/Makefile'
+- 'userprog/Makefile'
+- 'vmem/Makefile'
+
+En particular, 'FILESYS_STUB' se define en:
+- 'userprog/Makefile
+- 'vmem/Makefile'
+
+En particular, 'NETWORK' se define en:
+- 'network/Makefile'
+
+11 - NACHOS admite los argumentos:
+
+-d  Activa banderas de depuración
+-do Configura opciones de depuración
+-rs Inicializa el generador de numeros aleatorios para emular una secuencia aleatoria de ejecucion
+    de varios hilos.
+-p  Utiliza un scheduler apropiativo.
+-s  Depuracion de programas de usuario
+-f  Formatear disco
+-n  Configura la confianza de la red
+-id Configura el UNIX socket name
+
+-i  Imprime informacion del sistema
+-z  Imprime informacion de version
+-tt Inicia una rutina de prueba para hilos
+-x  Inicia un programa de usuario
+-tc Inicia una rutina de prueba para la consola
+-cp Copia del sistema de archivos UNIX al sistema de archivos de NACHOS
+-pr Imprime un archivo de NACHOS
+-rm Borra un archivo de NACHOS
+-ls Lista un directorio de NACHOS
+-D  Imprime todo el sistema de archivos de NACHOS
+-c  Comprueba el sistema de archivos de NACHOS
+-tf Inicia una prueba de performance del sistema de archivos
+-tn Inicia una rutina de prueba para la red
+
+12 - 
