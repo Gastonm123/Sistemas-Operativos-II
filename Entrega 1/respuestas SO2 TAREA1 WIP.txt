@@ -141,4 +141,27 @@ En particular, 'NETWORK' se define en:
 -tf Inicia una prueba de performance del sistema de archivos
 -tn Inicia una rutina de prueba para la red
 
-12 - 
+12 - Agregando las cabeceras mmu.hh y disk.hh podemos imprimir la informacion del sistema completa.
+Reemplazamos los UNKNOWN en el archivo sys_info.cc por los valores reales:
+
+printf("\n\
+Memory:\n\
+  Page size: %d bytes.\n\
+  Number of pages: %d.\n\
+  Number of TLB entries: %d.\n\
+  Memory size: %d bytes.\n",
+  PAGE_SIZE, NUM_PHYS_PAGES, TLB_SIZE, MEMORY_SIZE);
+
+printf("\n\
+Disk:\n\
+  Sector size: %d bytes.\n\
+  Sectors per track: %d.\n\
+  Number of tracks: %d.\n\
+  Number of sectors: %d.\n\
+  Disk size: %d bytes.\n",
+  SECTOR_SIZE, SECTORS_PER_TRACK, NUM_TRACKS, NUM_SECTORS, NUM_SECTORS * SECTOR_SIZE);
+
+13 - La clase List no es thread safe. La clase SynchList extiende la clase List agregando un lock y
+una variable de condicion para garantizar que un solo hilo puede acceder a los datos de una lista al
+mismo tiempo. Tambien al popear un elemento de una lista el procedimiento se bloquea hasta que haya
+un elemento, similar al escenario de Productores/Consumidores.
