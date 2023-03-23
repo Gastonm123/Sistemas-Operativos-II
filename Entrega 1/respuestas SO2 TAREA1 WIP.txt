@@ -165,3 +165,18 @@ Disk:\n\
 una variable de condicion para garantizar que un solo hilo puede acceder a los datos de una lista al
 mismo tiempo. Tambien al popear un elemento de una lista el procedimiento se bloquea hasta que haya
 un elemento, similar al escenario de Productores/Consumidores.
+
+14 -
+ThreadTestSimple()
+{
+    char const *names[] = {"2nd", "3rd", "4th", "5th"};
+    char *name;
+	for (unsigned num = 0; num < 4; num++) {
+		name = new char[64];
+		strncpy(name, names[num], 64);
+    	Thread *newThread = new Thread(name);
+    	newThread->Fork(SimpleThread, (void *) name);
+	}
+    SimpleThread((void *) "1st");
+}
+
