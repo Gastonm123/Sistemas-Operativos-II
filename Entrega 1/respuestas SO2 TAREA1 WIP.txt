@@ -70,6 +70,32 @@ llamadas por estas
   - DEBUG
   - Sleep
 
+Archivos fuentes: 
+
+En el directorio 'threads':
+	- 'sys_info.cc'
+	- 'system.cc'
+	- 'preemptive.cc'
+	- 'thread.cc'
+	- 'scheduler.cc'
+	- 'thread_test.cc'
+En el directorio 'userprog':
+   	- 'debugger.cc'
+   	- 'exception.cc'
+En el directorio 'lib':
+   	- 'utility.cc'
+En el directorio 'machine':
+   	- 'interrupt.cc'
+   	- 'statistics.cc'
+   	- 'timer.cc'
+   	- 'machine.cc'
+En el directorio 'filesys':
+   	- 'file_system.cc'
+   	- 'synch_disk.cc'
+En el directorio 'network':
+   	- 'post.cc'
+
+
 8 - Sobre ASSERT: Si `condition` es false, printea un mensaje y dumpea core.  Util para documentar
 suposiciones en el codigo.
 
