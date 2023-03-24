@@ -180,3 +180,19 @@ ThreadTestSimple()
     SimpleThread((void *) "1st");
 }
 
+17 - 
+static void
+Turnstile(void *n_)
+{
+    unsigned *n = (unsigned *) n_;
+
+    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+        int temp = count;
+	// Aumentamos el contador antes de transferir (ej 17)
+        count = temp + 1;
+        currentThread->Yield();
+    }
+    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+    done[*n] = true;
+    delete n;
+}
