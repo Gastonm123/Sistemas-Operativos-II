@@ -49,7 +49,9 @@ SimpleThread(void *name_)
 void
 ThreadTestSimple()
 {
+    #ifdef SEMAPHORE_TEST
 	s = new Semaphore("s", 3);
+	#end_if
     char const *names[] = {"2nd", "3rd", "4th", "5th"};
     char *name;
 	for (unsigned num = 0; num < 4; num++) {
