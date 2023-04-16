@@ -17,6 +17,8 @@
 #ifndef NACHOS_THREADS_LOCK__HH
 #define NACHOS_THREADS_LOCK__HH
 
+class Semaphore;
+class Thread;
 
 /// This class defines a “lock”.
 ///
@@ -57,7 +59,8 @@ private:
     /// For debugging.
     const char *name;
 
-    // Add other needed fields here.
+	Semaphore *semaphore;
+	Thread *held_by;
 };
 
 

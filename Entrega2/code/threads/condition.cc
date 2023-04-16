@@ -17,20 +17,20 @@
 
 #include "condition.hh"
 
+#include "semaphore.hh"
 
-/// Dummy functions -- so we can compile our later assignments.
-///
 /// Note -- without a correct implementation of `Condition::Wait`, the test
 /// case in the network assignment will not work!
 
 Condition::Condition(const char *debugName, Lock *conditionLock)
 {
-    // TODO
+	this->conditionLock = conditionLock;
+	queue = new List<Semaphore*>();
 }
 
 Condition::~Condition()
 {
-    // TODO
+	delete queue;
 }
 
 const char *
@@ -42,17 +42,41 @@ Condition::GetName() const
 void
 Condition::Wait()
 {
-    // TODO
+	Semaphore* semaphore = new Semaphore("Wait", 0);
+	Enqueue(semaphore);
+	semaphore->P();
+	delete semaphore;
 }
 
 void
 Condition::Signal()
 {
-    // TODO
+	auto semaphore = Dequeue();
+	semaphore->V();
 }
 
 void
 Condition::Broadcast()
 {
-    // TODO
+	while (!QueueIsEmpty()) {
+		Signal();
+	}
+}
+
+void
+Condition::Enqueue(Semaphore* semaphore)
+{
+	queue->Append(semaphore);
+}
+
+Semaphore*
+Condition::Dequeue()
+{
+	return queue->Pop();
+}
+
+bool
+Condition::QueueIsEmpty()
+{
+	return queue->IsEmpty();
 }

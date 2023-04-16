@@ -16,15 +16,21 @@
 
 
 #include "lock.hh"
+#include "semaphore.hh"
+#include "system.hh"
 
-
-/// Dummy functions -- so we can compile our later assignments.
 
 Lock::Lock(const char *debugName)
-{}
+{
+	name = debugName;
+	semaphore = new Semaphore(debugName, 1);
+	held_by = nullptr;
+}
 
 Lock::~Lock()
-{}
+{
+	delete semaphore;
+}
 
 const char *
 Lock::GetName() const
@@ -35,18 +41,21 @@ Lock::GetName() const
 void
 Lock::Acquire()
 {
-    // TODO
+	ASSERT(!IsHeldByCurrentThread());
+	semaphore->P();
+	held_by = currentThread;
 }
 
 void
 Lock::Release()
 {
-    // TODO
+	ASSERT(IsHeldByCurrentThread());
+	held_by = nullptr;
+	semaphore->V();
 }
 
 bool
 Lock::IsHeldByCurrentThread() const
 {
-    // TODO
-    return false;
+	return held_by == currentThread;
 }

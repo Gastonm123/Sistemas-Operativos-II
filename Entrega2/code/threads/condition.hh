@@ -17,8 +17,10 @@
 #ifndef NACHOS_THREADS_CONDITION__HH
 #define NACHOS_THREADS_CONDITION__HH
 
-
 #include "lock.hh"
+#include "lib/list.hh"
+
+class Semaphore;
 
 
 /// This class defines a “condition variable”.
@@ -74,7 +76,14 @@ public:
 
 private:
 
+	void Enqueue(Semaphore* semaphore);
+	Semaphore* Dequeue();
+	bool QueueIsEmpty();
+
     const char *name;
+
+	Lock* conditionLock;
+	List<Semaphore*> *queue;
 
     // Other needed fields are to be added here.
 };
