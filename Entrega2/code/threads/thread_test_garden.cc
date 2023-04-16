@@ -7,6 +7,7 @@
 
 #include "thread_test_garden.hh"
 #include "system.hh"
+#include "semaphore.hh"
 
 #include <stdio.h>
 
@@ -16,43 +17,62 @@ static const unsigned ITERATIONS_PER_TURNSTILE = 50;
 static bool done[NUM_TURNSTILES];
 static int count;
 
+// Semaforo para coordinar (ej 18)
+Semaphore* s = nullptr;
+
 static void
 Turnstile(void *n_)
 {
-    unsigned *n = (unsigned *) n_;
+	unsigned *n = (unsigned *) n_;
 
-    for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
-        int temp = count;
-        currentThread->Yield();
-        count = temp + 1;
-    }
-    printf("Turnstile %u finished. Count is now %u.\n", *n, count);
-    done[*n] = true;
-    delete n;
+	for (unsigned i = 0; i < ITERATIONS_PER_TURNSTILE; i++) {
+
+		// Adquiero recurso (ej 18)
+		s->P();
+
+		int temp = count;
+		currentThread->Yield();
+		count = temp + 1;
+
+		// Libero recurso (ej 18)
+		s->V();
+
+	}
+	printf("Turnstile %u finished. Count is now %u.\n", *n, count);
+	done[*n] = true;
+	delete n;
 }
 
 void
 ThreadTestGarden()
 {
-    // Launch a new thread for each turnstile.
-    for (unsigned i = 0; i < NUM_TURNSTILES; i++) {
-        printf("Launching turnstile %u.\n", i);
-        char *name = new char [16];
-        sprintf(name, "Turnstile %u", i);
-        unsigned *n = new unsigned;
-        *n = i;
-        Thread *t = new Thread(name);
-        t->Fork(Turnstile, (void *) n);
-    }
 
-    // Wait until all turnstile threads finish their work.  `Thread::Join` is
-    // not implemented at the beginning, therefore an ad-hoc workaround is
-    // applied here.
-    for (unsigned i = 0; i < NUM_TURNSTILES; i++) {
-        while (!done[i]) {
-            currentThread->Yield();
-        }
-    }
-    printf("All turnstiles finished. Final count is %u (should be %u).\n",
-           count, ITERATIONS_PER_TURNSTILE * NUM_TURNSTILES);
+	// Inicio semaforo (ej 18)
+	s = new Semaphore("ornamental", 1);
+
+	// Launch a new thread for each turnstile.
+	for (unsigned i = 0; i < NUM_TURNSTILES; i++) {
+		printf("Launching turnstile %u.\n", i);
+		char *name = new char [16];
+		sprintf(name, "Turnstile %u", i);
+		unsigned *n = new unsigned;
+		*n = i;
+		Thread *t = new Thread(name);
+		t->Fork(Turnstile, (void *) n);
+	}
+
+	// Wait until all turnstile threads finish their work.  `Thread::Join` is
+	// not implemented at the beginning, therefore an ad-hoc workaround is
+	// applied here.
+	for (unsigned i = 0; i < NUM_TURNSTILES; i++) {
+		while (!done[i]) {
+			currentThread->Yield();
+		}
+	}
+
+	// Libero semaforo (ej 18)
+	delete s;
+
+	printf("All turnstiles finished. Final count is %u (should be %u).\n",
+			count, ITERATIONS_PER_TURNSTILE * NUM_TURNSTILES);
 }
