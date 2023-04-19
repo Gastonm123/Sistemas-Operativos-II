@@ -29,6 +29,7 @@
 /// overflows.
 const unsigned STACK_FENCEPOST = 0xDEADBEEF;
 
+const unsigned DEFAULT_PRIORITY = 120;
 
 static inline bool
 IsThreadStatus(ThreadStatus s)
@@ -46,6 +47,7 @@ Thread::Thread(const char *threadName)
     stackTop = nullptr;
     stack    = nullptr;
     status   = JUST_CREATED;
+    priority = DEFAULT_PRIORITY;
 #ifdef USER_PROGRAM
     space    = nullptr;
 #endif
@@ -279,6 +281,24 @@ Thread::StackAllocate(VoidFunctionPtr func, void *arg)
     machineState[InitialPCState]  = (uintptr_t) func;
     machineState[InitialArgState] = (uintptr_t) arg;
     machineState[WhenDonePCState] = (uintptr_t) ThreadFinish;
+}
+
+/// Change priority.
+void
+Thread::Nice(int niceValue)
+{
+    ASSERT(niceValue >= -20 && niceValue < 20);
+
+    DEBUG('t', "Changing thread \"%s\" priority from %d to %d\n", GetName(), GetPriority(),
+          DEFAULT_PRIORITY + niceValue);
+
+    priority = DEFAULT_PRIORITY + niceValue;
+}
+
+int
+Thread::GetPriority() const
+{
+    return priority;
 }
 
 #ifdef USER_PROGRAM

@@ -122,9 +122,14 @@ public:
     /// Check if thread has overflowed its stack.
     void CheckOverflow() const;
 
+    /// Set a different value of niceness
+    void Nice(int);
+
     void SetStatus(ThreadStatus st);
 
     const char *GetName() const;
+
+    int GetPriority() const;
 
     void Print() const;
 
@@ -140,6 +145,8 @@ private:
     ThreadStatus status;
 
     const char *name;
+
+    int priority;
 
     /// Allocate a stack for thread.  Used internally by `Fork`.
     void StackAllocate(VoidFunctionPtr func, void *arg);

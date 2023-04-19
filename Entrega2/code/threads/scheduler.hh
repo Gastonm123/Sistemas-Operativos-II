@@ -14,6 +14,7 @@
 #include "thread.hh"
 #include "lib/list.hh"
 
+static const unsigned MAX_PRIO = 140;
 
 /// The following class defines the scheduler/dispatcher abstraction --
 /// the data structures and operations needed to keep track of which
@@ -40,9 +41,13 @@ public:
     void Print();
 
 private:
-
-    // Queue of threads that are ready to run, but not running.
+    
     List<Thread*> *readyList;
+    unsigned long *bitmap;
+
+    void SetBit(int bit);
+    void ResetBit(int bit);
+    int FindFirstBit();
 
 };
 

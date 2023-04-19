@@ -31,22 +31,14 @@ SimpleThread(void *name_)
 	// conditions.
 	for (unsigned num = 0; num < 10; num++) {
 #ifdef SEMAPHORE_TEST
-
-#ifdef SEMAPHORE_TEST_DEBUG
-		printf("*** Thread `%s` wait semaphore\n", name);
-#endif
-
+        DEBUG('t', "*** Thread `%s` wait semaphore\n", name);
 		s->P();
 #endif
 
 		printf("*** Thread `%s` is running: iteration %u\n", name, num);
 
 #ifdef SEMAPHORE_TEST
-
-#ifdef SEMAPHORE_TEST_DEBUG
-		printf("*** Thread `%s` post semaphore\n", name);
-#endif
-
+		DEBUG('t', "*** Thread `%s` post semaphore\n", name);
 		s->V();
 #endif
 

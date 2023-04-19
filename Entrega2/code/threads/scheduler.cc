@@ -20,20 +20,54 @@
 
 #include "scheduler.hh"
 #include "system.hh"
+#include "lib/utility.hh"
 
 #include <stdio.h>
+#include <string.h>
 
+const unsigned BITS_LONG = sizeof(long) * BITS_IN_BYTE;
+const unsigned BITMAP_SIZE = DivRoundUp(MAX_PRIO, BITS_LONG);
 
 /// Initialize the list of ready but not running threads to empty.
 Scheduler::Scheduler()
 {
-    readyList = new List<Thread *>;
+    readyList = new List<Thread *>[MAX_PRIO];
+    bitmap    = new unsigned long[BITMAP_SIZE];
+    memset(bitmap, 0, BITMAP_SIZE);
 }
 
 /// De-allocate the list of ready threads.
 Scheduler::~Scheduler()
 {
-    delete readyList;
+    delete[] readyList;
+    delete[] bitmap;
+}
+
+/// Set bit in the bitmap signaling ready threads.
+inline void
+Scheduler::SetBit(int bit)
+{
+    bitmap[bit/BITS_LONG] |= 1UL << (bit%BITS_LONG);
+}
+
+/// Reset bit in the bitmap signaling no more threads
+inline void
+Scheduler::ResetBit(int bit)
+{
+    bitmap[bit/BITS_LONG] &= ~(1UL << (bit%BITS_LONG));
+}
+
+/// Find first set bit in bitmap and return one plus its index or
+/// zero if there is no set bit.
+int
+Scheduler::FindFirstBit()
+{
+    int idx;
+    for (unsigned i = 0; i < BITMAP_SIZE; i++) {
+        if ((idx = __builtin_ffsl(bitmap[i])))
+            return (i * BITS_LONG) + idx;
+    }
+    return 0;
 }
 
 /// Mark a thread as ready, but not running.
@@ -47,8 +81,12 @@ Scheduler::ReadyToRun(Thread *thread)
 
     DEBUG('t', "Putting thread %s on ready list\n", thread->GetName());
 
+    unsigned    priority = thread->GetPriority();
+    List<Thread*> *queue = readyList + priority;
+
     thread->SetStatus(READY);
-    readyList->Append(thread);
+    queue->Append(thread);
+    SetBit(priority);
 }
 
 /// Return the next thread to be scheduled onto the CPU.
@@ -59,7 +97,17 @@ Scheduler::ReadyToRun(Thread *thread)
 Thread *
 Scheduler::FindNextToRun()
 {
-    return readyList->Pop();
+    int idx;
+    if ((idx = FindFirstBit())) {
+        List<Thread*> *queue = readyList + idx - 1;
+        ASSERT(!(queue->IsEmpty()));
+
+        Thread *nextThread = queue->Pop();
+        if (queue->IsEmpty())
+            ResetBit(idx - 1);
+        return nextThread;
+    }
+    return nullptr;
 }
 
 /// Dispatch the CPU to `nextThread`.
@@ -139,5 +187,10 @@ void
 Scheduler::Print()
 {
     printf("Ready list contents:\n");
-    readyList->Apply(ThreadPrint);
+    for (unsigned prio = 0; prio < MAX_PRIO; prio++) {
+        if (!(readyList[prio].IsEmpty())) {
+            printf("\n[%d] ", prio);
+            readyList[prio].Apply(ThreadPrint);
+        }
+    }
 }
