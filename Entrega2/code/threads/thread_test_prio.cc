@@ -68,7 +68,7 @@ void
 DataBus(void *dataBusLock_)
 {
     Lock *dataBusLock = (Lock *) dataBusLock_;
-    dataBusLock->Acquire();
+    dataBusLock->Acquire(true);
     printf("*** Data bus liberated\n");
     dataBusLock->Release();
 }

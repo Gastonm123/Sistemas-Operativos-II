@@ -301,6 +301,12 @@ Thread::GetPriority() const
     return priority;
 }
 
+int
+Thread::GetNice() const
+{
+    return priority - DEFAULT_PRIORITY;
+}
+
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 

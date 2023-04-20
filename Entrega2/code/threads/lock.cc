@@ -39,11 +39,16 @@ Lock::GetName() const
 }
 
 void
-Lock::Acquire()
+Lock::Acquire(bool prioInheritance)
 {
-	ASSERT(!IsHeldByCurrentThread());
-	semaphore->P();
-	held_by = currentThread;
+    ASSERT(!IsHeldByCurrentThread());
+    if (prioInheritance && held_by != nullptr) {
+        unsigned oldPrio = held_by->GetPriority();
+        held_by->Nice(currentThread->GetNice());
+        scheduler->Reschedule(held_by, oldPrio);
+    }
+    semaphore->P();
+    held_by = currentThread;
 }
 
 void

@@ -37,6 +37,9 @@ public:
     /// Cause `nextThread` to start running.
     void Run(Thread *nextThread);
 
+    /// Reschedule`thread` according to its new priority.
+    void Reschedule(Thread *thread, unsigned oldPrio);
+
     // Print contents of ready list.
     void Print();
 

@@ -131,6 +131,8 @@ public:
 
     int GetPriority() const;
 
+    int GetNice() const;
+
     void Print() const;
 
 private:

@@ -45,7 +45,7 @@ public:
     /// Operations on the lock.
     ///
     /// Both must be *atomic*.
-    void Acquire();
+    void Acquire(bool prioInheritance=false);
     void Release();
 
     /// Returns `true` if the current thread is the one that possesses the

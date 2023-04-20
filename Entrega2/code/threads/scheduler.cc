@@ -172,6 +172,20 @@ Scheduler::Run(Thread *nextThread)
 #endif
 }
 
+/// Reschedule`thread` according to its new priority.
+void
+Scheduler::Reschedule(Thread *thread, unsigned oldPrio)
+{
+    unsigned newPrio = thread->GetPriority();
+
+    readyList[oldPrio].Remove(thread);
+    if (readyList[oldPrio].IsEmpty())
+        ResetBit(oldPrio);
+
+    readyList[newPrio].Append(thread);
+    SetBit(newPrio);
+}
+
 /// Print the scheduler state -- in other words, the contents of the ready
 /// list.
 ///
