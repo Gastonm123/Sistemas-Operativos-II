@@ -43,9 +43,11 @@ Lock::Acquire(bool prioInheritance)
 {
     ASSERT(!IsHeldByCurrentThread());
     if (prioInheritance && held_by != nullptr) {
-        unsigned oldPrio = held_by->GetPriority();
-        held_by->Nice(currentThread->GetNice());
-        scheduler->Reschedule(held_by, oldPrio);
+        unsigned holderPrio = held_by->GetPriority();
+        if (holderPrio > currentThread->GetPriority()) {
+            held_by->Nice(currentThread->GetNice());
+            scheduler->Reschedule(held_by, holderPrio);
+        }
     }
     semaphore->P();
     held_by = currentThread;
