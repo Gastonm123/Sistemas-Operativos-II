@@ -4,5 +4,7 @@
 
 void ThreadTestPrio();
 
+void ThreadTestInversion();
+
 
 #endif

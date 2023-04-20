@@ -1,5 +1,6 @@
 #include "thread_test_prio.hh"
 #include "system.hh"
+#include "lock.hh"
 
 #include <stdio.h>
 #include <string.h>
@@ -43,5 +44,68 @@ ThreadTestPrio()
     SimpleSimpleThread((void *) "1st");
 }
 
+/// Simulate a weather thread.
+void
+Weather(void *dataBusLock_)
+{
+    Lock *dataBusLock = (Lock *) dataBusLock_;
+    dataBusLock->Acquire();
+    currentThread->Yield(); // simulates a real-time task arriving in the middle
+                            // of the task.
+    printf("*** Weather analyzed\n");
+    dataBusLock->Release();
+}
 
+/// Simulate a communication thread.
+void
+Communication(void *arg)
+{
+    printf("*** Communications\n");
+}
 
+/// Simulate a data bus thread.
+void
+DataBus(void *dataBusLock_)
+{
+    Lock *dataBusLock = (Lock *) dataBusLock_;
+    dataBusLock->Acquire();
+    printf("*** Data bus liberated\n");
+    dataBusLock->Release();
+}
+
+/// Set up the same conditions which caused a priority inversion in the Mars
+/// Pathfinder mission. In this test a low-priority thread called Weather is
+/// executed; it takes a lock and yields the processor. Then a medium-priority
+/// thread (called Communication), a high-priority thread (called Data Bus),
+/// and the low-priority thread are scheduled and the main thread yields the
+/// processor. The high-priority thread will try to take the lock first and
+/// then exit.
+/// If an inversion occurs the results will be as follows:
+/// *** Communications
+/// *** Weather analyzed
+/// *** Data bus liberated
+///
+/// Mars Pathfinder paper:
+/// https://www.cs.unc.edu/~anderson/teach/comp790/papers/mars_pathfinder_short_version.html
+void
+ThreadTestInversion()
+{
+    Thread *weather = new Thread("Weather");
+    Thread *communication = new Thread("Communication");
+    Thread *dataBus = new Thread("Data Bus");
+
+    // negative nice values so that they are executed before the main thread
+    weather->Nice(-1); communication->Nice(-5);
+    dataBus->Nice(-10);
+
+    Lock *dataBusLock = new Lock("Data Bus Lock");
+    weather->Fork(Weather, (void *) dataBusLock);
+    currentThread->Yield();
+
+    communication->Fork(Communication, NULL);
+    dataBus->Fork(DataBus, (void *) dataBusLock);
+    currentThread->Yield();
+
+    delete dataBusLock;
+    // threads get deleted when they exit
+}
