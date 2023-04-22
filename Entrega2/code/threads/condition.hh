@@ -82,7 +82,7 @@ private:
     /// Condition lock ensuring mutual exclusion on some condition.
     /// This lock is also used to ensure mutual exclusion when manupilating the
     /// queue.
-	Lock *conditionLock;
+    Lock *conditionLock;
 
     /// Queue of semaphores with their thread priority.
     PrioArray<Semaphore*> *queue;

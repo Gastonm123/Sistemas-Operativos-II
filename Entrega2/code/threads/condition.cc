@@ -25,13 +25,13 @@
 Condition::Condition(const char *debugName, Lock *conditionLock_)
 {
     name = debugName;
-	conditionLock = conditionLock_;
-	queue = new PrioArray<Semaphore*>;
+    conditionLock = conditionLock_;
+    queue = new PrioArray<Semaphore*>;
 }
 
 Condition::~Condition()
 {
-	delete queue;
+    delete queue;
 }
 
 const char *
@@ -72,7 +72,7 @@ Condition::Broadcast()
     ASSERT(conditionLock->IsHeldByCurrentThread());
 
     Semaphore *semaphore;
-	while ((semaphore = queue->Pop())) {
+    while ((semaphore = queue->Pop())) {
         semaphore->V();
-	}
+    }
 }
