@@ -21,8 +21,9 @@
 
 
 #include "thread.hh"
-#include "lib/list.hh"
+#include "prio_array.hh"
 
+class Thread;
 
 /// This class defines a “semaphore”, which has a positive integer as its
 /// value.
@@ -64,7 +65,7 @@ private:
     int value;
 
     /// Queue of threads waiting on `P` because the value is zero.
-    List<Thread *> *queue;
+    PrioArray<Thread*> *queue;
 
 };
 

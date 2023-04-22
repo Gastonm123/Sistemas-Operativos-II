@@ -19,50 +19,72 @@
 #include "semaphore.hh"
 #include "system.hh"
 
-
+/// Initialize a lock.
+///
+/// * `debugName` is an arbitrary name, useful for debugging.
 Lock::Lock(const char *debugName)
 {
-	name = debugName;
-	semaphore = new Semaphore(debugName, 1);
-	held_by = nullptr;
+    name = debugName;
+    semaphore = new Semaphore(debugName, 1);
+    holder = nullptr;
+    prioInherit = false;
 }
 
+/// De-allocate lock.
 Lock::~Lock()
 {
-	delete semaphore;
+    delete semaphore;
 }
 
+/// Get lock name. Useful for debugging purposes.
 const char *
 Lock::GetName() const
 {
     return name;
 }
 
+/// Set priority inheritance flag for this lock.
 void
-Lock::Acquire(bool prioInheritance)
+Lock::SetPrioInherit()
+{
+    prioInherit = true;
+}
+
+/// Acquire lock. The lock may not be acquired while it is held by another
+/// thread. A thread must not `Acquire` the lock if it is already holding it.
+void
+Lock::Acquire()
 {
     ASSERT(!IsHeldByCurrentThread());
-    if (prioInheritance && held_by != nullptr) {
-        unsigned holderPrio = held_by->GetPriority();
-        if (holderPrio > currentThread->GetPriority()) {
-            held_by->Nice(currentThread->GetNice());
-            scheduler->Reschedule(held_by, holderPrio);
+    if (holder) {
+        if (prioInherit) {
+            if (holder->GetPriority() > currentThread->GetPriority()) {
+                unsigned holderPrio = holder->GetPriority();
+                holder->Nice(currentThread->GetNice());
+                scheduler->Reschedule(holder, holderPrio);
+            }
         }
     }
     semaphore->P();
-    held_by = currentThread;
+    holder = currentThread;
+    savedPrio = currentThread->GetNice();
 }
 
+/// Release lock. Only a thread holding the lock may `Release` it.
 void
 Lock::Release()
 {
-	ASSERT(IsHeldByCurrentThread());
-	held_by = nullptr;
-	semaphore->V();
+    ASSERT(IsHeldByCurrentThread());
+    if (prioInherit)
+        holder->Nice(savedPrio);
+    holder = nullptr;
+    semaphore->V();
 }
 
+/// Returns `true` if the current thread is the one that possesses the
+/// lock.
 bool
 Lock::IsHeldByCurrentThread() const
 {
-	return held_by == currentThread;
+  return holder == currentThread;
 }

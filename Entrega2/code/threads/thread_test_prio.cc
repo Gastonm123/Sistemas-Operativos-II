@@ -68,7 +68,7 @@ void
 DataBus(void *dataBusLock_)
 {
     Lock *dataBusLock = (Lock *) dataBusLock_;
-    dataBusLock->Acquire(true);
+    dataBusLock->Acquire();
     printf("*** Data bus liberated\n");
     dataBusLock->Release();
 }
@@ -99,6 +99,7 @@ ThreadTestInversion()
     dataBus->Nice(-10);
 
     Lock *dataBusLock = new Lock("Data Bus Lock");
+    dataBusLock->SetPrioInherit();
     weather->Fork(Weather, (void *) dataBusLock);
     currentThread->Yield();
 
