@@ -20,6 +20,9 @@
 #include "thread.hh"
 #include "switch.h"
 #include "system.hh"
+#include "lock.hh"
+#include "semaphore.hh"
+#include "condition.hh"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -41,13 +44,19 @@ IsThreadStatus(ThreadStatus s)
 /// `Thread::Fork`.
 ///
 /// * `threadName` is an arbitrary string, useful for debugging.
-Thread::Thread(const char *threadName)
+Thread::Thread(const char *threadName, bool mustJoin)
 {
     name     = threadName;
     stackTop = nullptr;
     stack    = nullptr;
     status   = JUST_CREATED;
     priority = DEFAULT_PRIORITY;
+    this->mustJoin = mustJoin;
+    if (mustJoin) {
+		joinLock = new Lock(threadName);
+		joinSem = new Semaphore(threadName, 0);
+		joinCond = new Condition(threadName, joinLock);
+	}
 #ifdef USER_PROGRAM
     space    = nullptr;
 #endif
@@ -157,6 +166,18 @@ Thread::Print() const
 void
 Thread::Finish()
 {
+    if (mustJoin) {
+        DEBUG('t', "Joining on thread \"%s\"\n", name);
+        joinSem->P();
+        joinLock->Acquire();
+        joinCond->Broadcast();
+        joinLock->Release();
+
+        delete joinLock;
+        delete joinSem;
+        delete joinCond;
+    }
+
     interrupt->SetLevel(INT_OFF);
     ASSERT(this == currentThread);
 
@@ -307,6 +328,15 @@ Thread::GetNice() const
     return priority - DEFAULT_PRIORITY;
 }
 
+void
+Thread::Join()
+{
+    ASSERT(mustJoin);
+    joinLock->Acquire();
+    joinSem->V();
+    joinCond->Wait();
+    joinLock->Release();
+}
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 
