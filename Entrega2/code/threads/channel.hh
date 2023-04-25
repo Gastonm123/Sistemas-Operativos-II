@@ -15,9 +15,9 @@ public:
 
 private:
     const char* name;
-    Lock *send_lock;
-    Semaphore *send_sem;
-    Semaphore *receive_sem;
+    Lock *sendLock;
+    Semaphore *sendSem;
+    Semaphore *receiveSem;
     int buffer;
 }
 

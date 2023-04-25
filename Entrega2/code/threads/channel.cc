@@ -5,16 +5,16 @@
 Channel::Channel(const char *debugName)
 {
     name = debugName;
-    send_lock = new Lock("SEND");
-    send_sem = new Semaphore("SEND", 0);
-    receive_sem = new Semaphore("RECEIVE", 0);
+    sendLock = new Lock("SEND");
+    sendSem = new Semaphore("SEND", 0);
+    receiveSem = new Semaphore("RECEIVE", 0);
 }
 
 Channel::~Channel()
 {
-    delete send_lock; 
-    delete send_sem;
-    delete receive_sem;
+    delete sendLock; 
+    delete sendSem;
+    delete receiveSem;
 }
 
 const char *Channel::GetName() const
@@ -24,16 +24,16 @@ const char *Channel::GetName() const
 
 void Channel::Send(int message)
 {
-    send_lock->Acquire(); 
+    sendLock->Acquire(); 
     buffer = message;
-    send_sem->V();
-    receive_sem->P();
-    send_lock->Release();
+    sendSem->V();
+    receiveSem->P();
+    sendLock->Release();
 }
 
 void Channel::Receive(int *message)
 {
-   send_sem->P();
+   sendSem->P();
    *message = buffer;
-   receive_sem->V();
+   receiveSem->V();
 }
