@@ -18,7 +18,7 @@
 #define NACHOS_THREADS_CONDITION__HH
 
 #include "lock.hh"
-#include "lib/list.hh"
+#include "prio_array.hh"
 
 class Semaphore;
 
@@ -76,16 +76,16 @@ public:
 
 private:
 
-	void Enqueue(Semaphore* semaphore);
-	Semaphore* Dequeue();
-	bool QueueIsEmpty();
-
+    /// Condition name
     const char *name;
 
-	Lock* conditionLock;
-	List<Semaphore*> *queue;
+    /// Condition lock ensuring mutual exclusion on some condition.
+    /// This lock is also used to ensure mutual exclusion when manupilating the
+    /// queue.
+    Lock *conditionLock;
 
-    // Other needed fields are to be added here.
+    /// Queue of semaphores with their thread priority.
+    PrioArray<Semaphore*> *queue;
 };
 
 

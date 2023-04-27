@@ -19,7 +19,10 @@
 
 
 #include "utility.hh"
+
+#ifdef FILESYS
 #include "filesys/open_file.hh"
+#endif
 
 
 /// A “bitmap” -- an array of bits, each of which can be independently set,
@@ -50,6 +53,11 @@ public:
     /// Is the “nth” bit set?
     bool Test(unsigned which) const;
 
+    /// Return the index of the first set bit plus one.
+    ///
+    /// If no bits are set, return 0.
+    unsigned FindFirstBit() const;
+
     /// Return the index of a clear bit, and as a side effect, set the bit.
     ///
     /// If no bits are clear, return -1.
@@ -61,6 +69,7 @@ public:
     /// Print contents of bitmap.
     void Print() const;
 
+#ifdef FILESYS
     /// Fetch contents from disk.
     ///
     /// Note: this is not needed until the *FILESYS* assignment, when we will
@@ -72,6 +81,7 @@ public:
     /// Note: this is not needed until the *FILESYS* assignment, when we will
     /// need to read and write the bitmap to a file.
     void WriteBack(OpenFile *file) const;
+#endif
 
 private:
 

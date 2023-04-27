@@ -10,11 +10,10 @@
 #ifndef NACHOS_THREADS_SCHEDULER__HH
 #define NACHOS_THREADS_SCHEDULER__HH
 
-
 #include "thread.hh"
-#include "lib/list.hh"
+#include "prio_array.hh"
 
-static const unsigned MAX_PRIO = 140;
+class Thread;
 
 /// The following class defines the scheduler/dispatcher abstraction --
 /// the data structures and operations needed to keep track of which
@@ -44,13 +43,9 @@ public:
     void Print();
 
 private:
-    
-    List<Thread*> *readyList;
-    unsigned long *bitmap;
 
-    void SetBit(int bit);
-    void ResetBit(int bit);
-    int FindFirstBit();
+    /// Threads ready.
+    PrioArray<Thread*> *readyList;
 
 };
 

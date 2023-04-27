@@ -16,21 +16,22 @@
 
 
 #include "condition.hh"
-
+#include "system.hh"
 #include "semaphore.hh"
 
 /// Note -- without a correct implementation of `Condition::Wait`, the test
 /// case in the network assignment will not work!
 
-Condition::Condition(const char *debugName, Lock *conditionLock)
+Condition::Condition(const char *debugName, Lock *conditionLock_)
 {
-	this->conditionLock = conditionLock;
-	queue = new List<Semaphore*>();
+    name = debugName;
+    conditionLock = conditionLock_;
+    queue = new PrioArray<Semaphore*>;
 }
 
 Condition::~Condition()
 {
-	delete queue;
+    delete queue;
 }
 
 const char *
@@ -42,41 +43,36 @@ Condition::GetName() const
 void
 Condition::Wait()
 {
-	Semaphore* semaphore = new Semaphore("Wait", 0);
-	Enqueue(semaphore);
-	semaphore->P();
-	delete semaphore;
+    ASSERT(conditionLock->IsHeldByCurrentThread());
+
+    Semaphore *semaphore = new Semaphore(name, 0);
+    queue->Append(semaphore, currentThread->GetPriority());
+
+    conditionLock->Release();
+    semaphore->P();
+    conditionLock->Acquire();
+    
+    delete semaphore;
 }
 
 void
 Condition::Signal()
 {
-	auto semaphore = Dequeue();
-	semaphore->V();
+    ASSERT(conditionLock->IsHeldByCurrentThread());
+
+    Semaphore *semaphore;
+    if ((semaphore = queue->Pop())) {
+        semaphore->V();
+    }
 }
 
 void
 Condition::Broadcast()
 {
-	while (!QueueIsEmpty()) {
-		Signal();
-	}
-}
+    ASSERT(conditionLock->IsHeldByCurrentThread());
 
-void
-Condition::Enqueue(Semaphore* semaphore)
-{
-	queue->Append(semaphore);
-}
-
-Semaphore*
-Condition::Dequeue()
-{
-	return queue->Pop();
-}
-
-bool
-Condition::QueueIsEmpty()
-{
-	return queue->IsEmpty();
+    Semaphore *semaphore;
+    while ((semaphore = queue->Pop())) {
+        semaphore->V();
+    }
 }

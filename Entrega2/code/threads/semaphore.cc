@@ -33,7 +33,7 @@ Semaphore::Semaphore(const char *debugName, int initialValue)
 {
     name  = debugName;
     value = initialValue;
-    queue = new List<Thread *>;
+    queue = new PrioArray<Thread*>;
 }
 
 /// De-allocate semaphore, when no longer needed.
@@ -64,7 +64,7 @@ Semaphore::P()
       // Disable interrupts.
 
     while (value == 0) {  // Semaphore not available.
-        queue->Append(currentThread);  // So go to sleep.
+        queue->Append(currentThread, currentThread->GetPriority());  // So go to sleep.
         currentThread->Sleep();
     }
     value--;  // Semaphore available, consume its value.

@@ -43,6 +43,7 @@ THREAD_HDR = threads/condition.hh             \
              threads/sys_info.hh              \
              threads/system.hh                \
              threads/thread.hh                \
+             threads/prio_array.hh            \
              threads/thread_test.hh           \
              threads/thread_test_garden.hh    \
              threads/thread_test_prod_cons.hh \
@@ -53,6 +54,7 @@ THREAD_HDR = threads/condition.hh             \
              lib/debug_opts.hh                \
              lib/list.hh                      \
              lib/utility.hh                   \
+             lib/bitmap.hh                    \
              machine/interrupt.hh             \
              machine/system_dep.hh            \
              machine/statistics.hh            \
@@ -75,6 +77,7 @@ THREAD_SRC = threads/main.cc                  \
              lib/assert.cc                    \
              lib/debug.cc                     \
              lib/utility.cc                   \
+             lib/bitmap.cc                    \
              machine/interrupt.cc             \
              machine/system_dep.cc            \
              machine/statistics.cc            \

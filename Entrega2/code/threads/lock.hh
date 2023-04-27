@@ -45,8 +45,11 @@ public:
     /// Operations on the lock.
     ///
     /// Both must be *atomic*.
-    void Acquire(bool prioInheritance=false);
+    void Acquire();
     void Release();
+
+    /// Set the `prioInherit` flag on the lock.
+    void SetPrioInherit();
 
     /// Returns `true` if the current thread is the one that possesses the
     /// lock.
@@ -59,8 +62,17 @@ private:
     /// For debugging.
     const char *name;
 
-	Semaphore *semaphore;
-	Thread *held_by;
+    /// A semaphore initialized in one.
+    Semaphore *semaphore;
+
+    /// Current holder of the lock.
+    Thread *holder;
+
+    /// Priority inheritance flag.
+    bool prioInherit;
+
+    /// Previous priority of a process promoted by priority inheritance.
+    unsigned savedPrio;
 };
 
 

@@ -1,0 +1,6 @@
+Ejercicio 5 - b
+
+El problema de inversion de prioridad no puede evitarse en el caso de los
+semaforos porque no podemos saber que proceso va a postear a un semaforo que
+esta bloqueando otros procesos importantes y no podemos incrementar la prioridad
+de ningun proceso.

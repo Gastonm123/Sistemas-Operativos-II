@@ -64,6 +64,19 @@ Bitmap::Test(unsigned which) const
     return map[which / BITS_IN_WORD] & 1 << which % BITS_IN_WORD;
 }
 
+/// Find first set bit in bitmap and return one plus its index or
+/// zero if there is no set bit.
+unsigned
+Bitmap::FindFirstBit() const
+{
+    unsigned idx;
+    for (unsigned i = 0; i < numWords; i++) {
+        if ((idx = __builtin_ffs(map[i])))
+            return (i * BITS_IN_WORD) + idx;
+    }
+    return 0;
+}
+
 /// Return the number of the first bit which is clear.  As a side effect, set
 /// the bit (mark it as in use).  (In other words, find and allocate a bit.)
 ///
@@ -111,6 +124,7 @@ Bitmap::Print() const
     printf("\n");
 }
 
+#ifdef FILESYS
 /// Initialize the contents of a bitmap from a Nachos file.
 ///
 /// Note: this is not needed until the *FILESYS* assignment.
@@ -134,3 +148,4 @@ Bitmap::WriteBack(OpenFile *file) const
     ASSERT(file != nullptr);
     file->WriteAt((char *) map, numWords * sizeof (unsigned), 0);
 }
+#endif

@@ -12,17 +12,17 @@
 void
 SimpleSimpleThread(void *name_)
 {
-	// Reinterpret arg `name` as a string.
-	char *name = (char *) name_;
+    // Reinterpret arg `name` as a string.
+    char *name = (char *) name_;
 
-	// If the lines dealing with interrupts are commented, the code will
-	// behave incorrectly, because printf execution may cause race
-	// conditions.
-	for (unsigned num = 0; num < 10; num++) {
-		printf("*** Thread `%s` is running: iteration %u\n", name, num);
-		currentThread->Yield();
-	}
-	printf("!!! Thread `%s` has finished\n", name);
+    // If the lines dealing with interrupts are commented, the code will
+    // behave incorrectly, because printf execution may cause race
+    // conditions.
+    for (unsigned num = 0; num < 10; num++) {
+        printf("*** Thread `%s` is running: iteration %u\n", name, num);
+        currentThread->Yield();
+    }
+    printf("!!! Thread `%s` has finished\n", name);
 }
 
 /// Set up a ping-pong between several threads but with priorities.
@@ -68,7 +68,7 @@ void
 DataBus(void *dataBusLock_)
 {
     Lock *dataBusLock = (Lock *) dataBusLock_;
-    dataBusLock->Acquire(true);
+    dataBusLock->Acquire();
     printf("*** Data bus liberated\n");
     dataBusLock->Release();
 }
@@ -99,6 +99,7 @@ ThreadTestInversion()
     dataBus->Nice(-10);
 
     Lock *dataBusLock = new Lock("Data Bus Lock");
+    dataBusLock->SetPrioInherit();
     weather->Fork(Weather, (void *) dataBusLock);
     currentThread->Yield();
 
