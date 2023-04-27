@@ -53,6 +53,7 @@ ThreadTestProdCons()
 {
 	lock = new Lock("prod_cons lock");
 	sem = new Semaphore("prod_cons semaphore", 0);
+	buffer = new List<int>();
 
 	Thread* producer = new Thread("producer", true);
 	Thread* consumer = new Thread("consumer", true);
@@ -65,4 +66,5 @@ ThreadTestProdCons()
 
 	delete lock;
 	delete sem;
+	delete buffer;
 }
