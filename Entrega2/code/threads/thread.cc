@@ -53,6 +53,7 @@ Thread::Thread(const char *threadName, bool mustJoin)
     priority = DEFAULT_PRIORITY;
     this->mustJoin = mustJoin;
     if (mustJoin) {
+		joinCounter = 0;
 		joinLock = new Lock(threadName);
 		joinSem = new Semaphore(threadName, 0);
 		joinCond = new Condition(threadName, joinLock);
@@ -330,13 +331,21 @@ void
 Thread::Join()
 {
     ASSERT(mustJoin);
+
     joinLock->Acquire();
+	joinCounter += 1;
+
     joinSem->V();
     joinCond->Wait();
+
+	joinCounter -= 1;
+	bool isLastJoin = joinCounter == 0;
     joinLock->Release();
 
-	delete joinLock;
-	delete joinCond;
+	if (isLastJoin) {
+		delete joinLock;
+		delete joinCond;
+	}
 }
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"

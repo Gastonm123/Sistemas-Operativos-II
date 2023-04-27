@@ -159,6 +159,7 @@ private:
     void StackAllocate(VoidFunctionPtr func, void *arg);
 
     bool mustJoin;
+	int joinCounter;
     Lock* joinLock;
     Semaphore* joinSem;
     Condition* joinCond;
