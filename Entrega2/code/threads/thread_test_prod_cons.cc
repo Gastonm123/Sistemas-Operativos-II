@@ -7,21 +7,29 @@
 
 #include "thread_test_prod_cons.hh"
 #include "system.hh"
-#include "channel.hh"
+#include "lock.hh"
+#include "semaphore.hh"
 
 #include <stdio.h>
 
 static const unsigned NUM_ITEMS = 10;
 
-Channel* chan;
+static Lock* lock;
+static Semaphore* sem;
+static List<int>* buffer;
 
 void
 Producer(void*)
 {
 	for (int i = 0; i < NUM_ITEMS; ++i) {
-		// random-looking numbers for testing purposes
-		int message = (i * i) % 23;
-		chan->Send(message);
+
+		// Pass the current iteration number for testing purposes
+		int message = i;
+
+		lock->Acquire();
+		buffer->Append(message);
+		lock->Release();
+		sem->V();
 	}
 	printf("Producer finished.\n");
 }
@@ -30,8 +38,11 @@ void
 Consumer(void*)
 {
 	for (int i = 0; i < NUM_ITEMS; ++i) {
-		int message;
-		chan->Receive(&message);
+		sem->P();
+		lock->Acquire();
+		int message = buffer->Pop();
+		lock->Release();
+
 		printf("Consumer received message %d\n", message);
 	}
 	printf("Consumer finished.\n");
@@ -40,9 +51,11 @@ Consumer(void*)
 void
 ThreadTestProdCons()
 {
-	chan = new Channel("prod_cons channel");
-	Thread* producer = new Thread("producer");
-	Thread* consumer = new Thread("consumer");
+	lock = new Lock("prod_cons lock");
+	sem = new Semaphore("prod_cons semaphore", 0);
+
+	Thread* producer = new Thread("producer", true);
+	Thread* consumer = new Thread("consumer", true);
 
 	producer->Fork(Producer, nullptr);
 	consumer->Fork(Consumer, nullptr);
@@ -50,5 +63,6 @@ ThreadTestProdCons()
 	producer->Join();
 	consumer->Join();
 
-	delete chan;
+	delete lock;
+	delete sem;
 }
