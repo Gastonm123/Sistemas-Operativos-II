@@ -173,9 +173,7 @@ Thread::Finish()
         joinCond->Broadcast();
         joinLock->Release();
 
-        delete joinLock;
         delete joinSem;
-        delete joinCond;
     }
 
     interrupt->SetLevel(INT_OFF);
@@ -336,6 +334,9 @@ Thread::Join()
     joinSem->V();
     joinCond->Wait();
     joinLock->Release();
+
+	delete joinLock;
+	delete joinCond;
 }
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
