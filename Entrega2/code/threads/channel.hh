@@ -19,6 +19,6 @@ private:
     Semaphore *sendSem;
     Semaphore *receiveSem;
     int buffer;
-}
+};
 
 #endif
