@@ -6,12 +6,65 @@
 
 
 #include "thread_test_prod_cons.hh"
+#include "system.hh"
+#include "lock.hh"
+#include "semaphore.hh"
 
 #include <stdio.h>
 
+static const unsigned NUM_ITEMS = 10;
+
+static Lock* lock;
+static Semaphore* sem;
+static List<int>* buffer;
+
+void
+Producer(void*)
+{
+	for (int i = 0; i < NUM_ITEMS; ++i) {
+
+		// Pass the current iteration number for testing purposes
+		int message = i;
+
+		lock->Acquire();
+		buffer->Append(message);
+		lock->Release();
+		sem->V();
+	}
+	printf("Producer finished.\n");
+}
+
+void
+Consumer(void*)
+{
+	for (int i = 0; i < NUM_ITEMS; ++i) {
+		sem->P();
+		lock->Acquire();
+		int message = buffer->Pop();
+		lock->Release();
+
+		printf("Consumer received message %d\n", message);
+	}
+	printf("Consumer finished.\n");
+}
 
 void
 ThreadTestProdCons()
 {
-    printf("Test unimplemented!\n");
+	lock = new Lock("prod_cons lock");
+	sem = new Semaphore("prod_cons semaphore", 0);
+	buffer = new List<int>();
+
+	Thread* producer = new Thread("producer", true);
+	Thread* consumer = new Thread("consumer", true);
+
+	producer->Fork(Producer, nullptr);
+	consumer->Fork(Consumer, nullptr);
+
+	producer->Join();
+	consumer->Join();
+
+	delete lock;
+	delete sem;
+	delete buffer;
 }
