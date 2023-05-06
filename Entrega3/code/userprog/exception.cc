@@ -26,6 +26,7 @@
 #include "syscall.h"
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
+#include "lib/table.hh"
 
 #include <stdio.h>
 
@@ -81,6 +82,7 @@ static void
 SyscallHandler(ExceptionType _et)
 {
     int scid = machine->ReadRegister(2);
+    Table<OpenFile*> *openFiles = currentThread->openFiles;
 
     switch (scid) {
 
@@ -101,24 +103,22 @@ SyscallHandler(ExceptionType _et)
                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
             }
+            else {
+                DEBUG('e', "`Create` requested for file `%s`.\n", filename);
+            }
             
             // TODO: deberiamos recuperarlo de r5? La funcion no toma ningun argumento.
             unsigned initialSize = 0;
 
             // Deberia estar bien; si ya existe, simplemente se trunca.
-            ASSERT(fileSystem->Create(filename, initialSize)); 
+            if (!fileSystem->Create(filename, initialSize)) {
+                DEBUG('e', "Error: ocurrio un error con el sistema de archivos.\n");
+            }
 
-            DEBUG('e', "`Create` requested for file `%s`.\n", filename);
             break;
         }
 
-        case SC_CLOSE: {
-            int fid = machine->ReadRegister(4);
-            DEBUG('e', "`Close` requested for id %u.\n", fid);
-            break;
-        }
-
-	case SC_REMOVE: {
+        case SC_REMOVE: {
             int filenameAddr = machine->ReadRegister(4);
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
@@ -130,21 +130,75 @@ SyscallHandler(ExceptionType _et)
                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
             }
+            else {
+                DEBUG('e', "`Remove` pedido para archivo %s.\n", filename);
+            }
 
             if (!fileSystem->Remove(filename)) {
                 DEBUG('e', "Error: error intentando remover el archivo %s.\n", filename);
             }
 
-            DEBUG('e', "`Remove` pedido para archivo %s.\n", filename); 
+            break;
+        }
+ 
+        case SC_EXIT: {
+            DEBUG('e', "`Exit` pedido para el proceso actual");
+            currentThread->Finish();
+            // TODO: y con el argumento `status`que pasa?
+            break;
+        }
+
+        case SC_OPEN : {
+            int filenameAddr = machine->ReadRegister(4);
+            if (filenameAddr == 0) {
+                DEBUG('e', "Error: address to filename string is null.\n");
+            }
+
+            char filename[FILE_NAME_MAX_LEN + 1];
+            if (!ReadStringFromUser(filenameAddr,
+                                    filename, sizeof filename)) {
+                DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+            }
+            else {
+                DEBUG('e', "`Open` pedido para el archivo `%s`.\n", filename);
+            }
+
+            OpenFile *file = fileSystem->Open(filename);
+
+            if (!file) {
+                DEBUG('e', "Error: ocurrio un error con el sistema de archivos.\n");
+                machine->WriteRegister(2, -1);
+            }
+            else {
+                int fd = openFiles->Add(file);
+                machine->WriteRegister(2, fd);
+                if (fd < 0) {
+                    DEBUG('e', "Error: numero maximo de archivos abiertos alcanzado.\n");
+                }
+            }
 
             break;
         }
-	
-	case SC_EXIT: {
-            DEBUG('e', "`Exit` pedido para el proceso actual");
-            currentThread->Finish();
-	    // TODO: cerrar fd
-	    // TODO: y con el argumento `status`que pasa?
+
+        case SC_CLOSE: {
+            int fd = machine->ReadRegister(4);
+            DEBUG('e', "`CLOSE` pedido para el file descriptor `%d`.\n", fd);
+
+            OpenFile *file;
+            if ((file = openFiles->remove(fd)) != nullptr) {
+                delete file;
+            }
+            else {
+                DEBUG('e', "Error: file descriptor no existente.\n");
+            }
+
+            break;
+        }
+
+        case SC_PS: {
+            DEBUG('e', "`PS` pedido para el proceso actual");
+            scheduler->Print();
             break;
         }
 

@@ -44,6 +44,8 @@
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 #include "userprog/address_space.hh"
+#include "filesys/open_file.hh"
+#include "lib/table.hh"
 #endif
 
 #include <stdint.h>
@@ -182,6 +184,10 @@ public:
 
     // User code this thread is running.
     AddressSpace *space;
+
+    // Table of open files
+    Table<OpenFile*> *openFiles;
+
 #endif
 };
 

@@ -31,6 +31,7 @@
 #define SC_CLOSE   13
 #define SC_READ    14
 #define SC_WRITE   15
+#define SC_PS      16 // print scheduler
 
 
 #ifndef IN_ASM

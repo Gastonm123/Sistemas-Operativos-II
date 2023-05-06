@@ -51,6 +51,7 @@ Thread::Thread(const char *threadName, bool mustJoin)
     stack    = nullptr;
     status   = JUST_CREATED;
     priority = DEFAULT_PRIORITY;
+    openFiles = new Table<OpenFile*>;
     this->mustJoin = mustJoin;
     if (mustJoin) {
 		joinCounter = 0;
@@ -82,6 +83,7 @@ Thread::~Thread()
     }
 #ifdef USER_PROGRAM
     delete space;
+    delete openFiles;
 #endif
 }
 
