@@ -411,6 +411,8 @@ Thread::RemoteJoin(int *exitStatus)
 void
 Thread::Exit(int exitStatus)
 {
+    interrupt->SetLevel(INT_OFF);
+
     ASSERT(this == currentThread);
     ASSERT(space != nullptr);
 
@@ -429,7 +431,9 @@ Thread::Exit(int exitStatus)
         delete info;
     }
 
-    Finish();
+    threadToBeDestroyed = currentThread;
+    Sleep();  // Invokes `SWITCH`.
+    // Not reached.
 }
 
 
