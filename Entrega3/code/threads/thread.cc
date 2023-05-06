@@ -58,9 +58,9 @@ Thread::Thread(const char *threadName, bool mustJoin)
 		joinSem = new Semaphore(threadName, 0);
 		joinCond = new Condition(threadName, joinLock);
 	}
-    this->tid = threadMap->Add(this);//devuelve -1 si hay 20 o mas hilos.
 #ifdef USER_PROGRAM
-    space    = nullptr;
+    this->tid = threadMap->Add(this);//devuelve -1 si hay 20 o mas hilos.
+    space     = nullptr;
     openFiles = new Table<OpenFile*>;
     threadsJoining = new List<JoinInfo*>;
 #endif
@@ -89,8 +89,8 @@ Thread::~Thread()
         SystemDep::DeallocBoundedArray((char *) stack,
                                        STACK_SIZE * sizeof *stack);
     }
-    threadMap->Remove(tid);
 #ifdef USER_PROGRAM
+    threadMap->Remove(tid);
     delete space;
     delete openFiles;
     ASSERT(threadsJoining->IsEmpty());
