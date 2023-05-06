@@ -62,8 +62,8 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
-const unsigned SC_FAILURE = -1;
-const unsigned SC_SUCCESS = 0;
+const int SC_FAILURE = -1;
+const int SC_SUCCESS = 0;
 
 /// Handle a system call exception.
 ///
@@ -203,7 +203,7 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`CLOSE` pedido para el file descriptor `%d`.\n", fd);
 
             OpenFile *file;
-            if ((file = openFiles->remove(fd)) == nullptr) {
+            if ((file = openFiles->Remove(fd)) == nullptr) {
                 DEBUG('e', "Error: file descriptor no existente.\n");
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
