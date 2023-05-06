@@ -62,6 +62,9 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
+const unsigned SC_FAILURE = -1;
+const unsigned SC_SUCCESS = 0;
+
 /// Handle a system call exception.
 ///
 /// * `et` is the kind of exception.  The list of possible exceptions is in
@@ -95,6 +98,8 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4);
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
 
             char filename[FILE_NAME_MAX_LEN + 1];
@@ -102,19 +107,23 @@ SyscallHandler(ExceptionType _et)
                                     filename, sizeof filename)) {
                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
-            else {
-                DEBUG('e', "`Create` requested for file `%s`.\n", filename);
-            }
-            
+
+            DEBUG('e', "`Create` requested for file `%s`.\n", filename);
+
             // TODO: deberiamos recuperarlo de r5? La funcion no toma ningun argumento.
             unsigned initialSize = 0;
 
             // Deberia estar bien; si ya existe, simplemente se trunca.
             if (!fileSystem->Create(filename, initialSize)) {
                 DEBUG('e', "Error: ocurrio un error con el sistema de archivos.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
 
+            machine->WriteRegister(2, SC_SUCCESS);
             break;
         }
 
@@ -122,6 +131,8 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4);
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
 
             char filename[FILE_NAME_MAX_LEN + 1];
@@ -129,15 +140,18 @@ SyscallHandler(ExceptionType _et)
                                     filename, sizeof filename)) {
                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
-            }
-            else {
-                DEBUG('e', "`Remove` pedido para archivo %s.\n", filename);
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
 
+            DEBUG('e', "`Remove` pedido para archivo %s.\n", filename);
             if (!fileSystem->Remove(filename)) {
                 DEBUG('e', "Error: error intentando remover el archivo %s.\n", filename);
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
 
+            machine->WriteRegister(2, SC_SUCCESS);
             break;
         }
  
@@ -152,6 +166,8 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4);
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
 
             char filename[FILE_NAME_MAX_LEN + 1];
@@ -159,23 +175,24 @@ SyscallHandler(ExceptionType _et)
                                     filename, sizeof filename)) {
                 DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
                       FILE_NAME_MAX_LEN);
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
-            else {
-                DEBUG('e', "`Open` pedido para el archivo `%s`.\n", filename);
-            }
+
+            DEBUG('e', "`Open` pedido para el archivo `%s`.\n", filename);
 
             OpenFile *file = fileSystem->Open(filename);
 
             if (!file) {
                 DEBUG('e', "Error: ocurrio un error con el sistema de archivos.\n");
-                machine->WriteRegister(2, -1);
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
-            else {
-                int fd = openFiles->Add(file);
-                machine->WriteRegister(2, fd);
-                if (fd < 0) {
-                    DEBUG('e', "Error: numero maximo de archivos abiertos alcanzado.\n");
-                }
+
+            int fd = openFiles->Add(file);// -1 en caso de error
+            machine->WriteRegister(2, fd);
+            if (fd < 0) {
+                DEBUG('e', "Error: numero maximo de archivos abiertos alcanzado.\n");
             }
 
             break;
@@ -186,12 +203,14 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`CLOSE` pedido para el file descriptor `%d`.\n", fd);
 
             OpenFile *file;
-            if ((file = openFiles->remove(fd)) != nullptr) {
-                delete file;
-            }
-            else {
+            if ((file = openFiles->remove(fd)) == nullptr) {
                 DEBUG('e', "Error: file descriptor no existente.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
             }
+
+            delete file;
+            machine->WriteRegister(2, SC_SUCCESS);
 
             break;
         }
