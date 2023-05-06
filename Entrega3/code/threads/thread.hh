@@ -77,6 +77,8 @@ enum ThreadStatus {
     NUM_THREAD_STATUS
 };
 
+class JoinInfo;
+
 /// The following class defines a “thread control block” -- which represents
 /// a single thread of execution.
 ///
@@ -142,6 +144,8 @@ public:
 
     void Join();
 
+    unsigned GetTid() const;
+
 private:
     // Some of the private data for this class is listed above.
 
@@ -161,10 +165,13 @@ private:
     void StackAllocate(VoidFunctionPtr func, void *arg);
 
     bool mustJoin;
-	int joinCounter;
+    int joinCounter;
     Lock* joinLock;
     Semaphore* joinSem;
     Condition* joinCond;
+
+    /// Thread identifier.
+    unsigned tid;
 
 #ifdef USER_PROGRAM
     /// User-level CPU register state.
@@ -174,6 +181,9 @@ private:
     /// state while executing kernel code.
     int userRegisters[NUM_TOTAL_REGS];
 
+    /// List of threads joining this thread user space.
+    List<JoinInfo*> *threadsJoining;
+
 public:
 
     // Save user-level register state.
@@ -181,6 +191,17 @@ public:
 
     // Restore user-level register state.
     void RestoreUserState();
+
+    /// Exit invoked from user space.
+    void Exit(int status);
+
+    /// Join a target thread user space. Returns target exit code.
+    int Join(Thread *target);
+
+    /// Another thread requests to be notified once this thread user space
+    /// exits.
+    void RemoteJoin(int *status);
+
 
     // User code this thread is running.
     AddressSpace *space;
@@ -205,5 +226,13 @@ extern "C" {
     void SWITCH(Thread *oldThread, Thread *newThread);
 }
 
+class JoinInfo {
+public:
+    /// Sleeping thread.
+    Thread *thread;
+
+    /// Space reserved for exit code.
+    int *status;
+};
 
 #endif
