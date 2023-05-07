@@ -27,6 +27,7 @@
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
 #include "lib/table.hh"
+#include "synch_console.hh"
 
 #include <stdio.h>
 
@@ -214,7 +215,103 @@ SyscallHandler(ExceptionType _et)
 
             break;
         }
+        case SC_WRITE: {
+            int bufferAddr = machine->ReadRegister(4);
+            int size = machine->ReadRegister(5);
+            OpenFileId fd = machine->ReadRegister(6);
 
+            DEBUG('e', "`WRITE` pedido para el file descriptor `%d`.\n", fd);
+
+            if (bufferAddr == 0) {
+                DEBUG('e', "Error: direccion de usuario invalida.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+            
+            if (size == 0) {
+                machine->WriteRegister(2, 0);
+                break;
+            }
+
+            char *buffer = new char[size]; 
+            ReadBufferFromUser(bufferAddr, buffer, size);
+            int numbytes;
+
+            if (fd == CONSOLE_OUTPUT) {
+                SynchConsole* console = new SynchConsole();
+                console->Write(buffer, size);
+                delete console;
+                numbytes = size;
+            }
+            else {
+                OpenFile* file = openFiles->Get(fd);
+                if (file == nullptr) {
+                    DEBUG('e', "Error: file descriptor no existente.\n");
+                    machine->WriteRegister(2, SC_FAILURE);
+                    goto WRITE_FAILURE;
+                }
+                numbytes = file->Write(buffer, size);
+                if (numbytes == 0) {
+                    DEBUG('e', "Error: no se pudo realizar la escritura.\n");
+                    machine->WriteRegister(2, SC_FAILURE);
+                    goto WRITE_FAILURE;
+                }
+            }
+
+            machine->WriteRegister(2, numbytes);
+WRITE_FAILURE:
+            delete buffer;
+            break;
+        } 
+        
+        case SC_READ: {
+            int bufferAddr = machine->ReadRegister(4);
+            int size = machine->ReadRegister(5);
+            OpenFileId fd = machine->ReadRegister(6);
+
+            DEBUG('e', "`READ` pedido para el file descriptor `%d`.\n", fd);
+
+            if (bufferAddr == 0) {
+                DEBUG('e', "Error: direccion de usuario invalida.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+            
+            if (size == 0) {
+                machine->WriteRegister(2, 0);
+                break;
+            }
+
+            char *buffer = new char[size]; 
+            int numbytes;
+
+            if (fd == CONSOLE_INPUT) {
+                SynchConsole* console = new SynchConsole();
+                console->Read(buffer, size);
+                delete console;
+                numbytes = size;
+            }
+            else {
+                OpenFile* file = openFiles->Get(fd);
+                if (file == nullptr) {
+                    DEBUG('e', "Error: file descriptor no existente.\n");
+                    machine->WriteRegister(2, SC_FAILURE);
+                    goto READ_FAILURE;
+                }
+                numbytes = file->Read(buffer, size);
+                if (numbytes == 0) {
+                    DEBUG('e', "Error: no se pudo realizar la lectura.\n");
+                    machine->WriteRegister(2, SC_FAILURE);
+                    goto READ_FAILURE;
+                }
+            }
+
+            WriteBufferToUser(buffer, bufferAddr, numbytes);
+            machine->WriteRegister(2, numbytes);
+READ_FAILURE:
+            delete buffer;
+            break;
+        } 
         case SC_PS: {
             DEBUG('e', "`PS` pedido para el proceso actual");
             scheduler->Print();
