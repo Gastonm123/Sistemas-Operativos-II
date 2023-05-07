@@ -33,9 +33,14 @@ extern Interrupt *interrupt;         ///< Interrupt status.
 extern Statistics *stats;            ///< Performance metrics.
 extern Timer *timer;                 ///< The hardware alarm clock.
 
+
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 extern Machine *machine;  // User program memory and registers.
+
+#include "lib/table.hh"
+typedef Table<Thread*> ThreadMap;
+extern ThreadMap *threadMap;// Global map of thread ids.
 #endif
 
 #ifdef FILESYS_NEEDED  // *FILESYS* or *FILESYS_STUB*.

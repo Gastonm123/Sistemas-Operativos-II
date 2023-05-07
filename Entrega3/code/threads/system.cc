@@ -30,6 +30,7 @@ Statistics *stats;            ///< Performance metrics.
 Timer *timer;                 ///< The hardware timer device, for invoking
                               ///< context switches.
 
+
 // 2007, Jose Miguel Santos Espino
 PreemptiveScheduler *preemptiveScheduler = nullptr;
 const long long DEFAULT_TIME_SLICE = 50000;
@@ -44,6 +45,9 @@ SynchDisk *synchDisk;
 
 #ifdef USER_PROGRAM  // Requires either *FILESYS* or *FILESYS_STUB*.
 Machine *machine;  ///< User program memory and registers.
+
+/// Global map for thread ids.
+ThreadMap *threadMap;
 #endif
 
 #ifdef NETWORK
@@ -229,6 +233,7 @@ Initialize(int argc, char **argv)
     Debugger *d = debugUserProg ? new Debugger : nullptr;
     machine = new Machine(d);  // This must come first.
     SetExceptionHandlers();
+    threadMap = new ThreadMap; // Global map for thread ids.
 #endif
 
 #ifdef FILESYS

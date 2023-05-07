@@ -95,6 +95,8 @@ USERPROG_HDR = userprog/address_space.hh            \
                filesys/file_system.hh               \
                filesys/open_file.hh                 \
                lib/bitmap.hh                        \
+							 lib/table.hh                         \
+							 threads/thread_map.hh                \
                machine/console.hh                   \
                machine/encoding.hh                  \
                machine/endianness.hh                \
@@ -103,7 +105,7 @@ USERPROG_HDR = userprog/address_space.hh            \
                machine/machine.hh                   \
                machine/mmu.hh                       \
                machine/translation_entry.hh         \
-               userprog/synch_console.hh	       
+               userprog/synch_console.hh	        
 USERPROG_SRC = userprog/address_space.cc            \
                userprog/args.cc                     \
                userprog/debugger.cc                 \

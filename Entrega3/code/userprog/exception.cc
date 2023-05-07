@@ -63,6 +63,14 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
+/// Run a user program.
+void
+RunUserProgram(void *dummy) {
+    machine->Run(); // Jump to user program.
+    ASSERT(false);  // `machine->Run` never returns; the address space
+                    // exits by doing the system call `Exit`.
+}
+
 const int SC_FAILURE = -1;
 const int SC_SUCCESS = 0;
 
@@ -157,9 +165,13 @@ SyscallHandler(ExceptionType _et)
         }
  
         case SC_EXIT: {
-            DEBUG('e', "`Exit` pedido para el proceso actual");
-            currentThread->Finish();
+            int status = machine->ReadRegister(4);
+            DEBUG('e', "`Exit` pedido para el proceso actual con exit code"
+                  "%d.\n", status);
+
             // TODO: y con el argumento `status`que pasa?
+            currentThread->Exit(status);
+            ASSERT(false);// not reached.
             break;
         }
 
@@ -201,7 +213,11 @@ SyscallHandler(ExceptionType _et)
 
         case SC_CLOSE: {
             int fd = machine->ReadRegister(4);
-            DEBUG('e', "`CLOSE` pedido para el file descriptor `%d`.\n", fd);
+            if (fd < 0) {
+                DEBUG('e', "Error: file descriptor invalido.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
 
             OpenFile *file;
             if ((file = openFiles->Remove(fd)) == nullptr) {
@@ -210,16 +226,79 @@ SyscallHandler(ExceptionType _et)
                 break;
             }
 
+            DEBUG('e', "`CLOSE` pedido para el file descriptor `%d`.\n", fd);
+
             delete file;
             machine->WriteRegister(2, SC_SUCCESS);
 
             break;
         }
+
+        case SC_EXEC: {
+            int filenameAddr = machine->ReadRegister(4);
+            if (filenameAddr == 0) {
+                DEBUG('e', "Error: address to filename string is null.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+
+            char filename[FILE_NAME_MAX_LEN + 1];
+            if (!ReadStringFromUser(filenameAddr,
+                                    filename, sizeof filename)) {
+                DEBUG('e', "Error: filename string too long (maximum is %u bytes).\n",
+                      FILE_NAME_MAX_LEN);
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+
+            OpenFile *file = fileSystem->Open(filename);
+            if (!file) {
+                DEBUG('e', "Error: ocurrio un error con el sistema de archivos.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+
+            AddressSpace *space = new AddressSpace(file);
+            space->InitRegisters();// Inicializa registro del user space.
+            space->RestoreState();// Carga la tabla de paginacion en la MMU.
+
+            Thread *thread = new Thread(filename);
+            thread->space = space;
+            thread->Fork(RunUserProgram, nullptr);
+
+            unsigned tid = thread->GetTid();
+            machine->WriteRegister(2, tid);
+
+            break;
+        }
+
+        case SC_JOIN: {
+            int tid = machine->ReadRegister(4);
+            if (tid < 0) {
+                DEBUG('e', "Error: invalid space identifier.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+
+            Thread *target = threadMap->Get(tid);
+            if (!target) {
+                DEBUG('e', "Error: non existent space identifier.\n");
+                machine->WriteRegister(2, SC_FAILURE);
+                break;
+            }
+
+            /// Joinear con tid.
+            int status = currentThread->Join(target);
+            machine->WriteRegister(2, status);
+
+            break;
+        }
+
         case SC_WRITE: {
             int bufferAddr = machine->ReadRegister(4);
             int size = machine->ReadRegister(5);
             OpenFileId fd = machine->ReadRegister(6);
-
+            
             DEBUG('e', "`WRITE` pedido para el file descriptor `%d`.\n", fd);
 
             if (bufferAddr == 0) {
@@ -311,7 +390,8 @@ WRITE_FAILURE:
 READ_FAILURE:
             delete buffer;
             break;
-        } 
+        }
+        
         case SC_PS: {
             DEBUG('e', "`PS` pedido para el proceso actual");
             scheduler->Print();

@@ -51,7 +51,6 @@ Thread::Thread(const char *threadName, bool mustJoin)
     stack    = nullptr;
     status   = JUST_CREATED;
     priority = DEFAULT_PRIORITY;
-    openFiles = new Table<OpenFile*>;
     this->mustJoin = mustJoin;
     if (mustJoin) {
 		joinCounter = 0;
@@ -60,8 +59,17 @@ Thread::Thread(const char *threadName, bool mustJoin)
 		joinCond = new Condition(threadName, joinLock);
 	}
 #ifdef USER_PROGRAM
-    space    = nullptr;
+    this->tid = threadMap->Add(this);//devuelve -1 si hay 20 o mas hilos.
+    space     = nullptr;
+    openFiles = new Table<OpenFile*>;
+    threadsJoining = new List<JoinInfo*>;
 #endif
+}
+
+unsigned
+Thread::GetTid() const
+{
+    return tid;
 }
 
 /// De-allocate a thread.
@@ -82,8 +90,11 @@ Thread::~Thread()
                                        STACK_SIZE * sizeof *stack);
     }
 #ifdef USER_PROGRAM
+    threadMap->Remove(tid);
     delete space;
     delete openFiles;
+    ASSERT(threadsJoining->IsEmpty());
+    delete threadsJoining;
 #endif
 }
 
@@ -352,8 +363,79 @@ Thread::Join()
 		delete joinCond;
 	}
 }
+
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
+
+/// Join a target thread. Sleeps until the thread exits its user space and
+/// returns the exit status.
+///
+/// * `target` is the thread being joined.
+int
+Thread::Join(Thread *target)
+{
+    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
+
+    ASSERT(this == currentThread);
+    DEBUG('t', "Joining thread `%s` with thread `%s`.\n", name,
+          target->GetName());
+
+    int exitStatus;
+    target->RemoteJoin(&exitStatus);
+    Sleep();// returns after target exits.
+
+    interrupt->SetLevel(oldLevel);
+    return exitStatus;
+}
+
+/// Another thread requests to be notified once this thread finishes.
+/// `currentThread` is assumed to be the applicant.
+///
+///  * `exitStatus` is a reference to memory where this thread exit code will be
+///     stored.
+void
+Thread::RemoteJoin(int *exitStatus)
+{
+    ASSERT(this != currentThread);
+
+    // Puede ser que este hilo este marcado para ser destruido.
+    JoinInfo *info = new JoinInfo;
+    info->thread = currentThread;
+    info->status = exitStatus;
+    threadsJoining->Append(info);
+}
+
+/// Exit invoked from user space.
+///
+/// * `exitStatus` is the exit code.
+void
+Thread::Exit(int exitStatus)
+{
+    interrupt->SetLevel(INT_OFF);
+
+    ASSERT(this == currentThread);
+    ASSERT(space != nullptr);
+
+    DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
+
+    /// Complete join for pending threads.
+    while (!threadsJoining->IsEmpty()) {
+        JoinInfo *info = threadsJoining->Pop();
+
+        scheduler->ReadyToRun(info->thread);// `readyToRun` asume que las
+                                            // interrupciones estan apagadas
+        if (info->status) {
+            *info->status = exitStatus;
+        }
+
+        delete info;
+    }
+
+    threadToBeDestroyed = currentThread;
+    Sleep();  // Invokes `SWITCH`.
+    // Not reached.
+}
+
 
 /// Save the CPU state of a user program on a context switch.
 ///
