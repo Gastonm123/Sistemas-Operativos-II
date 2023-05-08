@@ -65,7 +65,19 @@ DefaultHandler(ExceptionType et)
 
 /// Run a user program.
 void
-RunUserProgram(void *dummy) {
+RunUserProgram(void *_argv) {
+    char** argv = (char**) _argv;
+
+    if (argv == nullptr) {
+        machine->WriteRegister(4, 0);
+        machine->WriteRegister(5, 0);
+    }
+    else {
+        machine->WriteRegister(4, WriteArgs(argv);
+        int sp = machine->ReadRegister(STACK_REG);
+        machine->WriteRegister(5, sp);
+    }
+
     machine->Run(); // Jump to user program.
     ASSERT(false);  // `machine->Run` never returns; the address space
                     // exits by doing the system call `Exit`.
@@ -236,6 +248,8 @@ SyscallHandler(ExceptionType _et)
 
         case SC_EXEC: {
             int filenameAddr = machine->ReadRegister(4);
+	        int argvAddr = machine->ReadRegister(5); 	
+
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
                 machine->WriteRegister(2, SC_FAILURE);
@@ -257,14 +271,23 @@ SyscallHandler(ExceptionType _et)
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }
+            
+            char** argv;
+            
+            if (argvAddr == 0) {
+                argv = nullptr;
+            }
+            else {
+                argv = SaveArgs(argvAddr);
+            }
 
             AddressSpace *space = new AddressSpace(file);
             space->InitRegisters();// Inicializa registro del user space.
             space->RestoreState();// Carga la tabla de paginacion en la MMU.
 
-            Thread *thread = new Thread(filename);
+            Thread *thread = new Thread("user process");
             thread->space = space;
-            thread->Fork(RunUserProgram, nullptr);
+            thread->Fork(RunUserProgram, argv);
 
             unsigned tid = thread->GetTid();
             machine->WriteRegister(2, tid);
