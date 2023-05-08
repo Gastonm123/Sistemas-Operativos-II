@@ -288,7 +288,7 @@ SyscallHandler(ExceptionType _et)
             }
 
             /// Joinear con tid.
-            int status = currentThread->Join(target);
+            int status = target->Join();
             machine->WriteRegister(2, status);
 
             break;

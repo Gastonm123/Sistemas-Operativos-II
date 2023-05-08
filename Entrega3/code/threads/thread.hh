@@ -50,9 +50,7 @@
 
 #include <stdint.h>
 
-class Lock;
-class Semaphore;
-class Condition;
+class Channel;
 
 /// CPU register state to be saved on context switch.
 ///
@@ -142,7 +140,13 @@ public:
 
     void Print() const;
 
-    void Join();
+    // Wait until thread thread finishes.
+    //
+    // It is invalid to call Join more than once on the same Thread.
+    // It is invalid for a thread to call Join on itself.
+    //
+    // Returns exit code of the thread. (or zero if it finished normally)
+    int Join();
 
     unsigned GetTid() const;
 
@@ -165,10 +169,8 @@ private:
     void StackAllocate(VoidFunctionPtr func, void *arg);
 
     bool mustJoin;
-    int joinCounter;
-    Lock* joinLock;
-    Semaphore* joinSem;
-    Condition* joinCond;
+    bool hasJoined;
+    Channel* joinChannel;
 
     /// Thread identifier.
     unsigned tid;
@@ -181,9 +183,6 @@ private:
     /// state while executing kernel code.
     int userRegisters[NUM_TOTAL_REGS];
 
-    /// List of threads joining this thread user space.
-    List<JoinInfo*> *threadsJoining;
-
 public:
 
     // Save user-level register state.
@@ -194,9 +193,6 @@ public:
 
     /// Exit invoked from user space.
     void Exit(int status);
-
-    /// Join a target thread user space. Returns target exit code.
-    int Join(Thread *target);
 
     /// Another thread requests to be notified once this thread user space
     /// exits.
