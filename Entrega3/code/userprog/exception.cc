@@ -63,15 +63,16 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
-/// Por alguna razon GCC le gusta usar las direcciones $sp y $sp+4 en vez de
-/// reservar su propio espacio. Asi que reduciendo en 8 el stack pointer se
-/// evita sobreescribir argv[0] y argv[1]. En teoria no deberia haber otros
-/// efectos secundarios.
+/// Por alguna razon GCC le gusta usar las direcciones $sp y $sp+4 para guardar
+/// $a0 y $a1 en vez de reservar su propio espacio. Probablemente lo mismo pase
+/// con $a2 y $a3.  Asi que reduciendo en 16 el stack pointer se evita
+/// sobreescribir el contenido de argv. En teoria no deberia haber otros efectos
+/// secundarios.
 void
 FixStack()
 {
     int sp = machine->ReadRegister(STACK_REG);
-    machine->WriteRegister(STACK_REG, sp-8);
+    machine->WriteRegister(STACK_REG, sp-16);
 }
 
 /// Run a user program.
