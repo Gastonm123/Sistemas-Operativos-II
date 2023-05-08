@@ -63,6 +63,17 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
+/// Por alguna razon GCC le gusta usar las direcciones $sp y $sp+4 en vez de
+/// reservar su propio espacio. Asi que reduciendo en 8 el stack pointer se
+/// evita sobreescribir argv[0] y argv[1]. En teoria no deberia haber otros
+/// efectos secundarios.
+void
+FixStack()
+{
+    int sp = machine->ReadRegister(STACK_REG);
+    machine->WriteRegister(STACK_REG, sp-8);
+}
+
 /// Run a user program.
 void
 RunUserProgram(void *_argv) {
@@ -80,6 +91,8 @@ RunUserProgram(void *_argv) {
         int sp = machine->ReadRegister(STACK_REG);
         machine->WriteRegister(5, sp);
     }
+
+    FixStack(); // Ad-hoc fix para algunas rarezas de GCC.
 
     machine->Run(); // Jump to user program.
     ASSERT(false);  // `machine->Run` never returns; the address space
