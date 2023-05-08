@@ -27,7 +27,6 @@
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
 #include "lib/table.hh"
-#include "synch_console.hh"
 
 #include <stdio.h>
 
@@ -340,9 +339,7 @@ SyscallHandler(ExceptionType _et)
             int numbytes;
 
             if (fd == CONSOLE_OUTPUT) {
-                SynchConsole* console = new SynchConsole();
-                console->Write(buffer, size);
-                delete console;
+                ui->Write(buffer, size);
                 numbytes = size;
             }
             else {
@@ -388,9 +385,7 @@ WRITE_FAILURE:
             int numbytes;
 
             if (fd == CONSOLE_INPUT) {
-                SynchConsole* console = new SynchConsole();
-                console->Read(buffer, size);
-                delete console;
+                ui->Read(buffer, size);
                 numbytes = size;
             }
             else {

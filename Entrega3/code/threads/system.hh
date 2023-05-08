@@ -43,6 +43,9 @@ extern Machine *machine;  // User program memory and registers.
 typedef Table<Thread*> ThreadMap;
 extern ThreadMap *threadMap;// Global map of thread ids.
 extern Bitmap *physPages;
+
+#include "userprog/synch_console.hh"
+extern SynchConsole *ui;
 #endif
 
 #ifdef FILESYS_NEEDED  // *FILESYS* or *FILESYS_STUB*.
