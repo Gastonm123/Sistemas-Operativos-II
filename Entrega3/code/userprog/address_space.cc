@@ -66,12 +66,12 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     ASSERT(exe.GetCodeAddr() == 0);
 
     virtualAddr = exe.GetCodeAddr();
-    virtualPage = virtualAddr >> 7;
-    offset      = virtualAddr & 0x7f;
+    virtualPage = virtualAddr / PAGE_SIZE;
+    offset      = virtualAddr % PAGE_SIZE;
     segmentOff  = 0;
     for (; codeSize > 0; virtualPage++) {
         physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = (physicalPage << 7) + offset;
+        physicalAddr = physicalPage * PAGE_SIZE + offset;
 
         //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
         //      virtualAddr, codeSize);
@@ -89,12 +89,12 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
            exe.GetCodeSize());
 
     virtualAddr = exe.GetInitDataAddr();
-    virtualPage = virtualAddr >> 7;
-    offset      = virtualAddr & 0x7f;
+    virtualPage = virtualAddr / PAGE_SIZE;
+    offset      = virtualAddr % PAGE_SIZE;
     segmentOff  = 0;
     for (; initDataSize > 0; virtualPage++) {
         physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = (physicalPage << 7) + offset;
+        physicalAddr = physicalPage * PAGE_SIZE + offset;
 
         //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
 
@@ -108,11 +108,11 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
     // Asumimos que mips buscara el segmento BSS a continuacion de DATA.
     virtualAddr = virtualAddr + exe.GetInitDataSize();
-    virtualPage = virtualAddr >> 7;
-    offset      = virtualAddr & 0x7f;
+    virtualPage = virtualAddr / PAGE_SIZE;
+    offset      = virtualAddr % PAGE_SIZE;
     for (; uninitDataSize > 0; virtualPage++) {
         physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = (physicalPage << 7) + offset;
+        physicalAddr = physicalPage * PAGE_SIZE + offset;
 
         //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
 

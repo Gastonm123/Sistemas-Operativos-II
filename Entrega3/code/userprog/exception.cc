@@ -27,6 +27,7 @@
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
 #include "lib/table.hh"
+#include "userprog/args.hh"
 
 #include <stdio.h>
 
@@ -65,6 +66,9 @@ DefaultHandler(ExceptionType et)
 /// Run a user program.
 void
 RunUserProgram(void *_argv) {
+    currentThread->space->InitRegisters();// Inicializa registro del user space.
+    currentThread->space->RestoreState();// Carga la tabla de paginacion en la MMU.
+
     char** argv = (char**) _argv;
 
     if (argv == nullptr) {
@@ -72,7 +76,7 @@ RunUserProgram(void *_argv) {
         machine->WriteRegister(5, 0);
     }
     else {
-        machine->WriteRegister(4, WriteArgs(argv);
+        machine->WriteRegister(4, WriteArgs(argv));
         int sp = machine->ReadRegister(STACK_REG);
         machine->WriteRegister(5, sp);
     }
@@ -247,7 +251,7 @@ SyscallHandler(ExceptionType _et)
 
         case SC_EXEC: {
             int filenameAddr = machine->ReadRegister(4);
-	        int argvAddr = machine->ReadRegister(5); 	
+            int argvAddr = machine->ReadRegister(5);
 
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
@@ -280,10 +284,9 @@ SyscallHandler(ExceptionType _et)
                 argv = SaveArgs(argvAddr);
             }
 
-            AddressSpace *space = new AddressSpace(file);
-            space->InitRegisters();// Inicializa registro del user space.
-            space->RestoreState();// Carga la tabla de paginacion en la MMU.
+            DEBUG('e', "`EXEC` pedido para el ejecutable `%s`.\n", filename);
 
+            AddressSpace *space = new AddressSpace(file);
             Thread *thread = new Thread("user process");
             thread->space = space;
             thread->Fork(RunUserProgram, argv);
@@ -308,6 +311,8 @@ SyscallHandler(ExceptionType _et)
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }
+
+            DEBUG('e', "`JOIN` pedido sobre el thread id `%d`.\n", tid);
 
             /// Joinear con tid.
             int status = currentThread->Join(target);
