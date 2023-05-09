@@ -76,7 +76,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
         //      virtualAddr, codeSize);
 
-        writeSize = min(PAGE_SIZE, codeSize);
+        writeSize = min(PAGE_SIZE - offset, codeSize);
         exe.ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
 
         segmentOff += writeSize;
@@ -98,7 +98,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
 
-        writeSize = min(PAGE_SIZE, initDataSize);
+        writeSize = min(PAGE_SIZE - offset, initDataSize);
         exe.ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
 
         segmentOff   += writeSize;
@@ -122,7 +122,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
         //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
 
-        writeSize = min(PAGE_SIZE, uninitDataSize);
+        writeSize = min(PAGE_SIZE - offset, uninitDataSize);
         memset(&mainMemory[physicalAddr], 0, writeSize);
 
         uninitDataSize -= writeSize;
