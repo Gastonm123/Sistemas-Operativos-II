@@ -133,6 +133,7 @@ Initialize(int argc, char **argv)
     const char *debugFlags = "";
     DebugOpts debugOpts;
     bool randomYield = false;
+    bool timeSlicing = false;
 
     // 2007, Jose Miguel Santos Espino
     bool preemptiveScheduling = false;
@@ -180,6 +181,9 @@ Initialize(int argc, char **argv)
                 argCount = 2;
             }
         }
+        else if (!strcmp(*argv, "-ts")) {
+            timeSlicing = true;
+        }
 #ifdef USER_PROGRAM
         if (!strcmp(*argv, "-s")) {
             debugUserProg = true;
@@ -210,6 +214,8 @@ Initialize(int argc, char **argv)
     scheduler = new Scheduler;   // Initialize the ready queue.
     if (randomYield) {           // Start the timer (if needed).
         timer = new Timer(TimerInterruptHandler, 0, randomYield);
+    } else if (timeSlicing) {
+        timer = new Timer(TimerInterruptHandler, 0, false);
     }
 
     threadToBeDestroyed = nullptr;
