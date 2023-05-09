@@ -262,6 +262,13 @@ SyscallHandler(ExceptionType _et)
         }
 
         case SC_EXEC: {
+            // TODO: Sería bueno tomar "mustJoin" como argumento de la syscall.
+            // Ahora nos vemos forzados a ser conservadores y pasar true.
+            //
+            // Por ejemplo, esto es un problema en `userland/shell.c`, donde no
+            // joineamos los threads que corren en segundo plano, y por lo tanto
+            // nunca se limpian sus recursos.
+
             int filenameAddr = machine->ReadRegister(4);
             int argvAddr = machine->ReadRegister(5);
 
@@ -299,7 +306,7 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`EXEC` pedido para el ejecutable `%s`.\n", filename);
 
             AddressSpace *space = new AddressSpace(file);
-            Thread *thread = new Thread("user process");
+            Thread *thread = new Thread("user process", true);
             thread->space = space;
             thread->Fork(RunUserProgram, argv);
 

@@ -69,10 +69,10 @@ Bitmap::Test(unsigned which) const
 unsigned
 Bitmap::FindFirstBit() const
 {
-    unsigned idx;
-    for (unsigned i = 0; i < numWords; i++) {
-        if ((idx = __builtin_ffs(map[i])))
-            return (i * BITS_IN_WORD) + idx;
+    for (unsigned i = 0; i < numBits; i++) {
+        if (Test(i)) {
+            return i+1;
+        }
     }
     return 0;
 }
