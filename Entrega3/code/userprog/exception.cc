@@ -151,7 +151,6 @@ SyscallHandler(ExceptionType _et)
 
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
 
-            // TODO: deberiamos recuperarlo de r5? La funcion no toma ningun argumento.
             unsigned initialSize = 0;
 
             // Deberia estar bien; si ya existe, simplemente se trunca.
@@ -198,7 +197,6 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`Exit` pedido para el proceso actual con exit code"
                   "%d.\n", status);
 
-            // TODO: y con el argumento `status`que pasa?
             currentThread->Exit(status);
             ASSERT(false);// not reached.
             break;
