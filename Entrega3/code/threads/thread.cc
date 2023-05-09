@@ -92,9 +92,16 @@ Thread::~Thread()
 #ifdef USER_PROGRAM
     threadMap->Remove(tid);
     delete space;
-    delete openFiles;
     ASSERT(threadsJoining->IsEmpty());
     delete threadsJoining;
+    // Cerrar archivos abiertos.
+    for (int fd = 0; fd < openFiles->SIZE; fd++) {
+        OpenFile *file = openFiles->Get(fd);
+        if (file) {
+            delete file;
+        }
+    }
+    delete openFiles;
 #endif
 }
 

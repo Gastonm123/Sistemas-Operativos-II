@@ -27,7 +27,7 @@
 #include "filesys/directory_entry.hh"
 #include "threads/system.hh"
 #include "lib/table.hh"
-#include "synch_console.hh"
+#include "userprog/args.hh"
 
 #include <stdio.h>
 
@@ -63,9 +63,38 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
+/// Por alguna razon GCC le gusta usar las direcciones $sp y $sp+4 para guardar
+/// $a0 y $a1 en vez de reservar su propio espacio. Probablemente lo mismo pase
+/// con $a2 y $a3.  Asi que reduciendo en 16 el stack pointer se evita
+/// sobreescribir el contenido de argv. En teoria no deberia haber otros efectos
+/// secundarios.
+void
+FixStack()
+{
+    int sp = machine->ReadRegister(STACK_REG);
+    machine->WriteRegister(STACK_REG, sp-16);
+}
+
 /// Run a user program.
 void
-RunUserProgram(void *dummy) {
+RunUserProgram(void *_argv) {
+    currentThread->space->InitRegisters();// Inicializa registro del user space.
+    currentThread->space->RestoreState();// Carga la tabla de paginacion en la MMU.
+
+    char** argv = (char**) _argv;
+
+    if (argv == nullptr) {
+        machine->WriteRegister(4, 0);
+        machine->WriteRegister(5, 0);
+    }
+    else {
+        machine->WriteRegister(4, WriteArgs(argv));
+        int sp = machine->ReadRegister(STACK_REG);
+        machine->WriteRegister(5, sp);
+    }
+
+    FixStack(); // Ad-hoc fix para algunas rarezas de GCC.
+
     machine->Run(); // Jump to user program.
     ASSERT(false);  // `machine->Run` never returns; the address space
                     // exits by doing the system call `Exit`.
@@ -236,6 +265,8 @@ SyscallHandler(ExceptionType _et)
 
         case SC_EXEC: {
             int filenameAddr = machine->ReadRegister(4);
+            int argvAddr = machine->ReadRegister(5);
+
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
                 machine->WriteRegister(2, SC_FAILURE);
@@ -257,14 +288,22 @@ SyscallHandler(ExceptionType _et)
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }
+            
+            char** argv;
+            
+            if (argvAddr == 0) {
+                argv = nullptr;
+            }
+            else {
+                argv = SaveArgs(argvAddr);
+            }
+
+            DEBUG('e', "`EXEC` pedido para el ejecutable `%s`.\n", filename);
 
             AddressSpace *space = new AddressSpace(file);
-            space->InitRegisters();// Inicializa registro del user space.
-            space->RestoreState();// Carga la tabla de paginacion en la MMU.
-
-            Thread *thread = new Thread(filename);
+            Thread *thread = new Thread("user process");
             thread->space = space;
-            thread->Fork(RunUserProgram, nullptr);
+            thread->Fork(RunUserProgram, argv);
 
             unsigned tid = thread->GetTid();
             machine->WriteRegister(2, tid);
@@ -286,6 +325,8 @@ SyscallHandler(ExceptionType _et)
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }
+
+            DEBUG('e', "`JOIN` pedido sobre el thread id `%d`.\n", tid);
 
             /// Joinear con tid.
             int status = currentThread->Join(target);
@@ -317,9 +358,7 @@ SyscallHandler(ExceptionType _et)
             int numbytes;
 
             if (fd == CONSOLE_OUTPUT) {
-                SynchConsole* console = new SynchConsole();
-                console->Write(buffer, size);
-                delete console;
+                ui->Write(buffer, size);
                 numbytes = size;
             }
             else {
@@ -365,9 +404,7 @@ WRITE_FAILURE:
             int numbytes;
 
             if (fd == CONSOLE_INPUT) {
-                SynchConsole* console = new SynchConsole();
-                console->Read(buffer, size);
-                delete console;
+                ui->Read(buffer, size);
                 numbytes = size;
             }
             else {
