@@ -63,16 +63,15 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
-/// Por alguna razon GCC le gusta usar las direcciones $sp y $sp+4 para guardar
-/// $a0 y $a1 en vez de reservar su propio espacio. Probablemente lo mismo pase
-/// con $a2 y $a3.  Asi que reduciendo en 16 el stack pointer se evita
-/// sobreescribir el contenido de argv. En teoria no deberia haber otros efectos
-/// secundarios.
+// Reserva espacio para argument-slots + return-address + padding
+// Ver explicacion en `args.hh`
+// Ver ABI de MIPS (paginas 2-4):
+// https://courses.cs.washington.edu/courses/cse410/09sp/examples/MIPSCallingConventionsSummary.pdf
 void
 FixStack()
 {
     int sp = machine->ReadRegister(STACK_REG);
-    machine->WriteRegister(STACK_REG, sp-16);
+    machine->WriteRegister(STACK_REG, sp-24);
 }
 
 /// Run a user program.
@@ -93,7 +92,8 @@ RunUserProgram(void *_argv) {
         machine->WriteRegister(5, sp);
     }
 
-    FixStack(); // Ad-hoc fix para algunas rarezas de GCC.
+    // Ad-hoc fix para rarezas de la ABI de MIPS
+    FixStack();
 
     machine->Run(); // Jump to user program.
     ASSERT(false);  // `machine->Run` never returns; the address space
@@ -151,7 +151,6 @@ SyscallHandler(ExceptionType _et)
 
             DEBUG('e', "`Create` requested for file `%s`.\n", filename);
 
-            // TODO: deberiamos recuperarlo de r5? La funcion no toma ningun argumento.
             unsigned initialSize = 0;
 
             // Deberia estar bien; si ya existe, simplemente se trunca.
@@ -198,7 +197,6 @@ SyscallHandler(ExceptionType _et)
             DEBUG('e', "`Exit` pedido para el proceso actual con exit code"
                   "%d.\n", status);
 
-            // TODO: y con el argumento `status`que pasa?
             currentThread->Exit(status);
             ASSERT(false);// not reached.
             break;
@@ -353,6 +351,12 @@ SyscallHandler(ExceptionType _et)
                 break;
             }
 
+            if (fd < 0) {
+                DEBUG('e', "Error: file descriptor invalido.\n");
+                machine->WriteRegister(2, 0);
+                break;
+            }
+
             char *buffer = new char[size]; 
             ReadBufferFromUser(bufferAddr, buffer, size);
             int numbytes;
@@ -378,7 +382,7 @@ SyscallHandler(ExceptionType _et)
 
             machine->WriteRegister(2, numbytes);
 WRITE_FAILURE:
-            delete buffer;
+            delete[] buffer;
             break;
         } 
         
@@ -400,6 +404,12 @@ WRITE_FAILURE:
                 break;
             }
 
+            if (fd < 0) {
+                DEBUG('e', "Error: file descriptor invalido.\n");
+                machine->WriteRegister(2, 0);
+                break;
+            }
+
             char *buffer = new char[size]; 
             int numbytes;
 
@@ -414,18 +424,21 @@ WRITE_FAILURE:
                     machine->WriteRegister(2, SC_FAILURE);
                     goto READ_FAILURE;
                 }
+                // numbytes = file->Read(buffer, size);
+                // if (numbytes == 0) {
+                //    DEBUG('e', "Error: no se pudo realizar la lectura.\n");
+                //    machine->WriteRegister(2, SC_FAILURE);
+                //    goto READ_FAILURE;
+                // }
                 numbytes = file->Read(buffer, size);
-                if (numbytes == 0) {
-                    DEBUG('e', "Error: no se pudo realizar la lectura.\n");
-                    machine->WriteRegister(2, SC_FAILURE);
-                    goto READ_FAILURE;
-                }
             }
 
-            WriteBufferToUser(buffer, bufferAddr, numbytes);
+            if (numbytes > 0) {
+                WriteBufferToUser(buffer, bufferAddr, numbytes);
+            }
             machine->WriteRegister(2, numbytes);
 READ_FAILURE:
-            delete buffer;
+            delete[] buffer;
             break;
         }
         

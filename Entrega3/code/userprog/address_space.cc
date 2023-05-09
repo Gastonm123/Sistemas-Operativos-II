@@ -106,8 +106,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         offset        = 0;
     }
 
-    // Asumimos que mips buscara el segmento BSS a continuacion de DATA.
-    virtualAddr = virtualAddr + exe.GetInitDataSize();
+    // Asumimos que mips buscara el segmento BSS a continuacion de DATA (si
+    // existe).
+    if (exe.GetInitDataSize() > 0) {
+        virtualAddr = exe.GetInitDataAddr() + exe.GetInitDataSize();
+    }
+    else {
+        virtualAddr = exe.GetCodeAddr() + exe.GetCodeSize();
+    }
     virtualPage = virtualAddr / PAGE_SIZE;
     offset      = virtualAddr % PAGE_SIZE;
     for (; uninitDataSize > 0; virtualPage++) {
