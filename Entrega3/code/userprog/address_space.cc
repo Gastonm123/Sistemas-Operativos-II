@@ -108,7 +108,7 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
     // Asumimos que mips buscara el segmento BSS a continuacion de DATA (si
     // existe).
-    if (initDataSize > 0) {
+    if (exe.GetInitDataSize() > 0) {
         virtualAddr = exe.GetInitDataAddr() + exe.GetInitDataSize();
     }
     else {
