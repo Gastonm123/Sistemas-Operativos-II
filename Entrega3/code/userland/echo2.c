@@ -18,11 +18,8 @@ main(void)
             Read(&buffer[i], 1, input);
         } while (buffer[i++] != '\n');
 
-        buffer[--i] = '\0';
-
         if (i > 0) {
-            newProc = Exec(buffer, 0);
-            Join(newProc);
+            Write(buffer, i, output);
         }
     }
 

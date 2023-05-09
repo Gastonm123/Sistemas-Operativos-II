@@ -23,8 +23,8 @@ const unsigned BITS_IN_WORD = 32;
 
 /// Miscellaneous useful routines.
 
-//#define min(a, b)  (((a) < (b)) ? (a) : (b))
-//#define max(a, b)  (((a) > (b)) ? (a) : (b))
+#define min(a, b)  (((a) < (b)) ? (a) : (b))
+#define max(a, b)  (((a) > (b)) ? (a) : (b))
 
 /// Divide and either round up or down.
 

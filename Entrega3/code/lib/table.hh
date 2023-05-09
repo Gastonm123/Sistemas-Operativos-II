@@ -19,9 +19,6 @@ public:
     /// Construct an empty table.
     Table();
 
-    // Destroy table contents.
-    ~Table();
-
     /// Add an item into a free index.
     ///
     /// Returns -1 if no space is left to add the item.
@@ -69,15 +66,6 @@ Table<T>::Table()
 {
     current = 0;
 }
-
-template <class T>
-Table<T>::~Table()
-{
-    for (int i = 0; i < current; i++) {
-        delete data[i];
-    }
-}
-
 
 template <class T>
 int
