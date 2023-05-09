@@ -33,7 +33,8 @@ INCLUDE_DIRS = -I../userprog -I../threads
 CFLAGS       = -std=c99 -G 0 -c $(INCLUDE_DIRS) -mips1 -mfp32 \
                -nostdlib -nostartfiles -nodefaultlibs -fno-pic -mno-abicalls
 
-PROGRAMS = echo filetest halt matmult shell sort tiny_shell touch echo2 hello
+PROGRAMS = echo filetest halt matmult shell sort tiny_shell touch echo2 hello \
+           cat cp rm test_ps
 
 
 .PHONY: all clean

@@ -62,6 +62,8 @@ Thread::Thread(const char *threadName, bool mustJoin)
     this->tid = threadMap->Add(this);//devuelve -1 si hay 20 o mas hilos.
     space     = nullptr;
     openFiles = new Table<OpenFile*>;
+    openFiles->Add(nullptr); // registra un dummy STDIN.
+    openFiles->Add(nullptr); // registra un dummy STDOUT.
     threadsJoining = new List<JoinInfo*>;
 #endif
 }

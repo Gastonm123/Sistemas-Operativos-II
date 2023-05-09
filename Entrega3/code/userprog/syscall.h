@@ -123,6 +123,8 @@ int Read(char *buffer, int size, OpenFileId id);
 /// Close the file, we are done reading and writing to it.
 int Close(OpenFileId id);
 
+/// Print the scheduler state.
+void Ps();
 
 #endif
 

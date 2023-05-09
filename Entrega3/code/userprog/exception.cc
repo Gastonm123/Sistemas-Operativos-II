@@ -353,6 +353,12 @@ SyscallHandler(ExceptionType _et)
                 break;
             }
 
+            if (fd < 0) {
+                DEBUG('e', "Error: file descriptor invalido.\n");
+                machine->WriteRegister(2, 0);
+                break;
+            }
+
             char *buffer = new char[size]; 
             ReadBufferFromUser(bufferAddr, buffer, size);
             int numbytes;
@@ -378,7 +384,7 @@ SyscallHandler(ExceptionType _et)
 
             machine->WriteRegister(2, numbytes);
 WRITE_FAILURE:
-            delete buffer;
+            delete[] buffer;
             break;
         } 
         
@@ -400,6 +406,12 @@ WRITE_FAILURE:
                 break;
             }
 
+            if (fd < 0) {
+                DEBUG('e', "Error: file descriptor invalido.\n");
+                machine->WriteRegister(2, 0);
+                break;
+            }
+
             char *buffer = new char[size]; 
             int numbytes;
 
@@ -414,18 +426,21 @@ WRITE_FAILURE:
                     machine->WriteRegister(2, SC_FAILURE);
                     goto READ_FAILURE;
                 }
+                // numbytes = file->Read(buffer, size);
+                // if (numbytes == 0) {
+                //    DEBUG('e', "Error: no se pudo realizar la lectura.\n");
+                //    machine->WriteRegister(2, SC_FAILURE);
+                //    goto READ_FAILURE;
+                // }
                 numbytes = file->Read(buffer, size);
-                if (numbytes == 0) {
-                    DEBUG('e', "Error: no se pudo realizar la lectura.\n");
-                    machine->WriteRegister(2, SC_FAILURE);
-                    goto READ_FAILURE;
-                }
             }
 
-            WriteBufferToUser(buffer, bufferAddr, numbytes);
+            if (numbytes > 0) {
+                WriteBufferToUser(buffer, bufferAddr, numbytes);
+            }
             machine->WriteRegister(2, numbytes);
 READ_FAILURE:
-            delete buffer;
+            delete[] buffer;
             break;
         }
         
