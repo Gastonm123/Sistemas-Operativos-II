@@ -57,9 +57,11 @@ Thread::Thread(const char *threadName, bool mustJoin)
         joinChannel = nullptr;
     }
 #ifdef USER_PROGRAM
-    this->tid = threadMap->Add(this);//devuelve -1 si hay 20 o mas hilos.
+    this->tid = threadMap->Add(this); //devuelve -1 si hay 20 o mas hilos.
     space     = nullptr;
     openFiles = new Table<OpenFile*>;
+    openFiles->Add(nullptr); // registra un dummy STDIN.
+    openFiles->Add(nullptr); // registra un dummy STDOUT.
 #endif
 }
 
@@ -89,8 +91,15 @@ Thread::~Thread()
 #ifdef USER_PROGRAM
     threadMap->Remove(tid);
     delete space;
-    delete openFiles;
     delete joinChannel;
+    // Cerrar archivos abiertos.
+    for (int fd = 0; fd < openFiles->SIZE; fd++) {
+        OpenFile *file = openFiles->Get(fd);
+        if (file) {
+            delete file;
+        }
+    }
+    delete openFiles;
 #endif
 }
 

@@ -12,6 +12,7 @@
 #ifdef USER_PROGRAM
 #include "userprog/debugger.hh"
 #include "userprog/exception.hh"
+#include "userprog/synch_console.hh"
 #endif
 
 #include <stdlib.h>
@@ -48,6 +49,8 @@ Machine *machine;  ///< User program memory and registers.
 
 /// Global map for thread ids.
 ThreadMap *threadMap;
+Bitmap *physPages;
+SynchConsole *ui;
 #endif
 
 #ifdef NETWORK
@@ -133,6 +136,7 @@ Initialize(int argc, char **argv)
     const char *debugFlags = "";
     DebugOpts debugOpts;
     bool randomYield = false;
+    bool timeSlicing = false;
 
     // 2007, Jose Miguel Santos Espino
     bool preemptiveScheduling = false;
@@ -180,6 +184,9 @@ Initialize(int argc, char **argv)
                 argCount = 2;
             }
         }
+        else if (!strcmp(*argv, "-ts")) {
+            timeSlicing = true;
+        }
 #ifdef USER_PROGRAM
         if (!strcmp(*argv, "-s")) {
             debugUserProg = true;
@@ -210,9 +217,15 @@ Initialize(int argc, char **argv)
     scheduler = new Scheduler;   // Initialize the ready queue.
     if (randomYield) {           // Start the timer (if needed).
         timer = new Timer(TimerInterruptHandler, 0, randomYield);
+    } else if (timeSlicing) {
+        timer = new Timer(TimerInterruptHandler, 0, false);
     }
 
     threadToBeDestroyed = nullptr;
+
+#ifdef USER_PROGRAM
+    threadMap = new ThreadMap; // Global map for thread ids.
+#endif
 
     // We did not explicitly allocate the current thread we are running in.
     // But if it ever tries to give up the CPU, we better have a `Thread`
@@ -233,7 +246,8 @@ Initialize(int argc, char **argv)
     Debugger *d = debugUserProg ? new Debugger : nullptr;
     machine = new Machine(d);  // This must come first.
     SetExceptionHandlers();
-    threadMap = new ThreadMap; // Global map for thread ids.
+    physPages = new Bitmap(NUM_PHYS_PAGES);
+    ui = new SynchConsole();
 #endif
 
 #ifdef FILESYS
@@ -264,6 +278,9 @@ Cleanup()
 
 #ifdef USER_PROGRAM
     delete machine;
+    delete threadMap;
+    delete physPages;
+    delete ui;
 #endif
 
 #ifdef FILESYS_NEEDED

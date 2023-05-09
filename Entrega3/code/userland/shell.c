@@ -112,20 +112,30 @@ main(void)
             continue;
         }
 
-        if (PrepareArguments(line, argv, MAX_ARG_COUNT) == 0) {
+        char* lineCursor = line;
+        int runInBackground = 0;
+        if (line[0] == '&') {
+            lineCursor += 1;
+            runInBackground = 1;
+        }
+
+
+        if (PrepareArguments(lineCursor, argv, MAX_ARG_COUNT) == 0) {
             WriteError("too many arguments.", OUTPUT);
             continue;
         }
 
         // Comment and uncomment according to whether command line arguments
         // are given in the system call or not.
-        const SpaceId newProc = Exec(line);
-        //const SpaceId newProc = Exec(line, argv);
+        // const SpaceId newProc = Exec(line);
+        const SpaceId newProc = Exec(lineCursor, argv);
 
         // TODO: check for errors when calling `Exec`; this depends on how
         //       errors are reported.
 
-        Join(newProc);
+        if (!runInBackground) {
+            Join(newProc);
+        }
         // TODO: is it necessary to check for errors after `Join` too, or
         //       can you be sure that, with the implementation of the system
         //       call handler you made, it will never give an error?; what

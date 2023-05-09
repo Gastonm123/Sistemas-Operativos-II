@@ -88,9 +88,9 @@ WriteArgs(char **args)
         sp -= strlen(args[c]) + 1;  // Decrease SP (leave one byte for \0).
         WriteStringToUser(args[c], sp);  // Write the string there.
         argsAddress[c] = sp;        // Save the argument's address.
-        delete args[c];             // Free the string.
+        delete[] args[c];           // Free the string.
     }
-    delete args;  // Free the array.
+    delete[] args;  // Free the array.
     ASSERT(c < MAX_ARG_COUNT);
 
     sp -= sp % 4;     // Align the stack to a multiple of four.
