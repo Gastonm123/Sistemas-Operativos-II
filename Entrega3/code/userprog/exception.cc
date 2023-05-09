@@ -63,16 +63,15 @@ DefaultHandler(ExceptionType et)
     ASSERT(false);
 }
 
-/// Por alguna razon GCC le gusta usar las direcciones $sp y $sp+4 para guardar
-/// $a0 y $a1 en vez de reservar su propio espacio. Probablemente lo mismo pase
-/// con $a2 y $a3.  Asi que reduciendo en 16 el stack pointer se evita
-/// sobreescribir el contenido de argv. En teoria no deberia haber otros efectos
-/// secundarios.
+// Reserva espacio para argument-slots + return-address + padding
+// Ver explicacion en `args.hh`
+// Ver ABI de MIPS (paginas 2-4):
+// https://courses.cs.washington.edu/courses/cse410/09sp/examples/MIPSCallingConventionsSummary.pdf
 void
 FixStack()
 {
     int sp = machine->ReadRegister(STACK_REG);
-    machine->WriteRegister(STACK_REG, sp-16);
+    machine->WriteRegister(STACK_REG, sp-24);
 }
 
 /// Run a user program.
@@ -93,7 +92,8 @@ RunUserProgram(void *_argv) {
         machine->WriteRegister(5, sp);
     }
 
-    FixStack(); // Ad-hoc fix para algunas rarezas de GCC.
+    // Ad-hoc fix para rarezas de la ABI de MIPS
+    FixStack();
 
     machine->Run(); // Jump to user program.
     ASSERT(false);  // `machine->Run` never returns; the address space
