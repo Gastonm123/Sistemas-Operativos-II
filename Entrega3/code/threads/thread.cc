@@ -20,9 +20,7 @@
 #include "thread.hh"
 #include "switch.h"
 #include "system.hh"
-#include "lock.hh"
-#include "semaphore.hh"
-#include "condition.hh"
+#include "channel.hh"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -52,19 +50,18 @@ Thread::Thread(const char *threadName, bool mustJoin)
     status   = JUST_CREATED;
     priority = DEFAULT_PRIORITY;
     this->mustJoin = mustJoin;
+    hasJoined = false;
     if (mustJoin) {
-		joinCounter = 0;
-		joinLock = new Lock(threadName);
-		joinSem = new Semaphore(threadName, 0);
-		joinCond = new Condition(threadName, joinLock);
-	}
+        joinChannel = new Channel(threadName);
+    } else {
+        joinChannel = nullptr;
+    }
 #ifdef USER_PROGRAM
-    this->tid = threadMap->Add(this);//devuelve -1 si hay 20 o mas hilos.
+    this->tid = threadMap->Add(this); //devuelve -1 si hay 20 o mas hilos.
     space     = nullptr;
     openFiles = new Table<OpenFile*>;
     openFiles->Add(nullptr); // registra un dummy STDIN.
     openFiles->Add(nullptr); // registra un dummy STDOUT.
-    threadsJoining = new List<JoinInfo*>;
 #endif
 }
 
@@ -94,8 +91,7 @@ Thread::~Thread()
 #ifdef USER_PROGRAM
     threadMap->Remove(tid);
     delete space;
-    ASSERT(threadsJoining->IsEmpty());
-    delete threadsJoining;
+    delete joinChannel;
     // Cerrar archivos abiertos.
     for (int fd = 0; fd < openFiles->SIZE; fd++) {
         OpenFile *file = openFiles->Get(fd);
@@ -192,14 +188,11 @@ Thread::Print() const
 void
 Thread::Finish()
 {
+    // TODO: Quizá podriamos llamar Exit(0) y nada mas
+
     if (mustJoin) {
         DEBUG('t', "Joining on thread \"%s\"\n", name);
-        joinSem->P();
-        joinLock->Acquire();
-        joinCond->Broadcast();
-        joinLock->Release();
-
-        delete joinSem;
+        joinChannel->Send(0);
     }
 
     interrupt->SetLevel(INT_OFF);
@@ -352,67 +345,28 @@ Thread::GetNice() const
     return priority - DEFAULT_PRIORITY;
 }
 
-void
+int
 Thread::Join()
 {
     ASSERT(mustJoin);
 
-    joinLock->Acquire();
-	joinCounter += 1;
+    // Aca hay una condicion de carrera en hasJoined.
+    // De todas formas, hasJoined solo sirve para detectar
+    // bugs de doble-join en el kernel.
+    // Asique el unico caso en el que se puede observar la
+    // condicion es en la presencia de otro error de
+    // concurrencia en el kernel.
+    ASSERT(!hasJoined);
+    hasJoined = true;
 
-    joinSem->V();
-    joinCond->Wait();
+    int result;
+    joinChannel->Receive(&result);
 
-	joinCounter -= 1;
-	bool isLastJoin = joinCounter == 0;
-    joinLock->Release();
-
-	if (isLastJoin) {
-		delete joinLock;
-		delete joinCond;
-	}
+    return result;
 }
 
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
-
-/// Join a target thread. Sleeps until the thread exits its user space and
-/// returns the exit status.
-///
-/// * `target` is the thread being joined.
-int
-Thread::Join(Thread *target)
-{
-    IntStatus oldLevel = interrupt->SetLevel(INT_OFF);
-
-    ASSERT(this == currentThread);
-    DEBUG('t', "Joining thread `%s` with thread `%s`.\n", name,
-          target->GetName());
-
-    int exitStatus;
-    target->RemoteJoin(&exitStatus);
-    Sleep();// returns after target exits.
-
-    interrupt->SetLevel(oldLevel);
-    return exitStatus;
-}
-
-/// Another thread requests to be notified once this thread finishes.
-/// `currentThread` is assumed to be the applicant.
-///
-///  * `exitStatus` is a reference to memory where this thread exit code will be
-///     stored.
-void
-Thread::RemoteJoin(int *exitStatus)
-{
-    ASSERT(this != currentThread);
-
-    // Puede ser que este hilo este marcado para ser destruido.
-    JoinInfo *info = new JoinInfo;
-    info->thread = currentThread;
-    info->status = exitStatus;
-    threadsJoining->Append(info);
-}
 
 /// Exit invoked from user space.
 ///
@@ -420,6 +374,10 @@ Thread::RemoteJoin(int *exitStatus)
 void
 Thread::Exit(int exitStatus)
 {
+    if (mustJoin) {
+        joinChannel->Send(exitStatus);
+    }
+
     interrupt->SetLevel(INT_OFF);
 
     ASSERT(this == currentThread);
@@ -427,24 +385,10 @@ Thread::Exit(int exitStatus)
 
     DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
 
-    /// Complete join for pending threads.
-    while (!threadsJoining->IsEmpty()) {
-        JoinInfo *info = threadsJoining->Pop();
-
-        scheduler->ReadyToRun(info->thread);// `readyToRun` asume que las
-                                            // interrupciones estan apagadas
-        if (info->status) {
-            *info->status = exitStatus;
-        }
-
-        delete info;
-    }
-
     threadToBeDestroyed = currentThread;
     Sleep();  // Invokes `SWITCH`.
     // Not reached.
 }
-
 
 /// Save the CPU state of a user program on a context switch.
 ///
