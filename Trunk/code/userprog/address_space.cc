@@ -184,6 +184,20 @@ AddressSpace::SaveState()
 void
 AddressSpace::RestoreState()
 {
-    machine->GetMMU()->pageTable     = pageTable;
+#ifdef USE_TLB
+    machine->GetMMU()->pageTable = nullptr;
+#else
+    machine->GetMMU()->pageTable = pageTable;
     machine->GetMMU()->pageTableSize = numPages;
+#endif
+}
+
+TranslationEntry*
+AddressSpace::GetTranslationEntry(unsigned virtualPage)
+{
+	if (virtualPage < numPages) {
+        return &pageTable[virtualPage];
+    } else {
+        return nullptr;
+    }
 }

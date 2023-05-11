@@ -47,6 +47,11 @@ public:
     void SaveState();
     void RestoreState();
 
+    // returns a pointer to the translation entry associated with
+    // with the given page, or nullptr if it is outside of the
+    // virtual address space.
+    TranslationEntry* GetTranslationEntry(unsigned virtualPage);
+
 private:
 
     /// Assume linear page table translation for now!

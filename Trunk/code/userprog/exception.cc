@@ -464,6 +464,28 @@ READ_FAILURE:
     IncrementPC();
 }
 
+void
+PageFaultHandler(ExceptionType _et)
+{
+    unsigned virtualAddress = machine->ReadRegister(BAD_VADDR_REG);
+    unsigned virtualPage = virtualAddress / PAGE_SIZE;
+
+    DEBUG('e', "TLB miss en pagina %u\n", virtualPage);
+
+    AddressSpace* addressSpace = currentThread->space;
+
+    TranslationEntry* entry = addressSpace->GetTranslationEntry(virtualPage);
+
+    ASSERT(entry); // TODO: segmentation fault
+
+    // Elegimos cual entrada de la TLB reemplazar heuristicamente
+    unsigned tlbIndex = virtualPage % TLB_SIZE;
+
+    machine->GetMMU()->tlb[tlbIndex] = *entry;
+
+    DEBUG('e', "pagina %u cargada en TLB\n", virtualPage);
+}
+
 
 /// By default, only system calls have their own handler.  All other
 /// exception types are assigned the default handler.
@@ -472,7 +494,7 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
-    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler);
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler);
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);
