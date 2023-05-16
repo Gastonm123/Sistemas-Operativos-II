@@ -13,6 +13,21 @@
 
 #include <string.h>
 
+uint32_t TranslatePage(uint32_t virtualPage, TranslationEntry* pageTable) {
+    uint32_t physicalPage = pageTable[virtualPage].physicalPage;
+
+    return physicalPage;
+}
+
+uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry* pageTable) {
+    uint32_t virtualPage = virtualAddress / PAGE_SIZE;
+    uint32_t offset      = virtualAddress % PAGE_SIZE;
+
+    uint32_t physicalPage = TranslatePage(virtualPage, pageTable);
+    uint32_t physicalAddr = physicalPage * PAGE_SIZE + offset;
+
+    return physicalAddr;
+}
 
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
@@ -55,78 +70,65 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     char *mainMemory = machine->GetMMU()->mainMemory;
 
     // Then, copy in the code and data segments into memory.
-    uint32_t codeSize = exe.GetCodeSize();
+    uint32_t const codeSize = exe.GetCodeSize();
     uint32_t initDataSize = exe.GetInitDataSize();
     uint32_t uninitDataSize = exe.GetUninitDataSize();
 
-    uint32_t virtualAddr, virtualPage, offset, segmentOff, physicalPage,
-             physicalAddr, writeSize;
-
-    // Assert que el segmento TEXT esta al inicio del programa.
-    ASSERT(exe.GetCodeAddr() == 0);
-
-    virtualAddr = exe.GetCodeAddr();
-    virtualPage = virtualAddr / PAGE_SIZE;
-    offset      = virtualAddr % PAGE_SIZE;
-    segmentOff  = 0;
-    for (; codeSize > 0; virtualPage++) {
-        physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = physicalPage * PAGE_SIZE + offset;
-
-        //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
-        //      virtualAddr, codeSize);
-
-        writeSize = min(PAGE_SIZE - offset, codeSize);
-        exe.ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-
-        segmentOff += writeSize;
-        codeSize   -= writeSize;
-        offset      = 0;
-    }
-
-    // Assert de que son contiguos los segmentos TEXT y DATA.
-    ASSERT(initDataSize == 0 || exe.GetInitDataAddr() == virtualAddr +
-           exe.GetCodeSize());
-
-    virtualAddr = exe.GetInitDataAddr();
-    virtualPage = virtualAddr / PAGE_SIZE;
-    offset      = virtualAddr % PAGE_SIZE;
-    segmentOff  = 0;
-    for (; initDataSize > 0; virtualPage++) {
-        physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = physicalPage * PAGE_SIZE + offset;
-
-        //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
-
-        writeSize = min(PAGE_SIZE - offset, initDataSize);
-        exe.ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-
-        segmentOff   += writeSize;
-        initDataSize -= writeSize;
-        offset        = 0;
-    }
-
+    uint32_t const codeStart = exe.GetCodeAddr();
+    uint32_t const initDataStart = exe.GetInitDataAddr();
     // Asumimos que mips buscara el segmento BSS a continuacion de DATA (si
     // existe).
-    if (exe.GetInitDataSize() > 0) {
-        virtualAddr = exe.GetInitDataAddr() + exe.GetInitDataSize();
-    }
-    else {
-        virtualAddr = exe.GetCodeAddr() + exe.GetCodeSize();
-    }
-    virtualPage = virtualAddr / PAGE_SIZE;
-    offset      = virtualAddr % PAGE_SIZE;
-    for (; uninitDataSize > 0; virtualPage++) {
-        physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = physicalPage * PAGE_SIZE + offset;
+    uint32_t const uninitDataStart = initDataSize > 0 ? initDataStart + initDataSize : codeStart + codeStart;
 
-        //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
+    // Assert que el segmento TEXT esta al inicio del programa.
+    ASSERT(codeStart == 0);
 
-        writeSize = min(PAGE_SIZE - offset, uninitDataSize);
+    // Assert de que son contiguos los segmentos TEXT y DATA.
+    ASSERT(initDataSize == 0 || initDataStart == codeStart + codeSize);
+
+    uint32_t virtualAddr, segmentOff, writeSize, remaining;
+
+    remaining = codeSize;
+    virtualAddr = codeStart;
+    segmentOff  = 0;
+    while (remaining > 0) {
+        uint32_t physicalAddr = TranslateAddress(virtualAddr, pageTable);
+        uint32_t offset = virtualAddr % PAGE_SIZE;
+
+        writeSize = min(PAGE_SIZE - offset, remaining);
+        exe.ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+
+        virtualAddr += writeSize;
+        segmentOff  += writeSize;
+        remaining   -= writeSize;
+    }
+
+    remaining = initDataSize;
+    virtualAddr = initDataStart;
+    segmentOff  = 0;
+    while (remaining > 0) {
+        uint32_t physicalAddr = TranslateAddress(virtualAddr, pageTable);
+        uint32_t offset = physicalAddr % PAGE_SIZE;
+
+        writeSize = min(PAGE_SIZE - offset, remaining);
+        exe.ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+
+        virtualAddr += writeSize;
+        segmentOff  += writeSize;
+        remaining   -= writeSize;
+    }
+
+    virtualAddr = uninitDataStart;
+    remaining = uninitDataSize;
+    while (remaining > 0) {
+        uint32_t physicalAddr = TranslateAddress(virtualAddr, pageTable);
+        uint32_t offset = virtualAddr % PAGE_SIZE;
+
+        writeSize = min(PAGE_SIZE - offset, remaining);
         memset(&mainMemory[physicalAddr], 0, writeSize);
 
-        uninitDataSize -= writeSize;
-        offset          = 0;
+        virtualAddr += writeSize;
+        remaining   -= writeSize;
     }
 }
 
