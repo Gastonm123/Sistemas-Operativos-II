@@ -20,6 +20,7 @@
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 
+class Executable;
 
 class AddressSpace {
 public:
@@ -59,6 +60,10 @@ private:
 
     /// Number of pages in the virtual address space.
     unsigned numPages;
+
+#ifdef USE_TLB
+    Executable* exe;
+#endif
 
 };
 

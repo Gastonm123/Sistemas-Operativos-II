@@ -34,6 +34,28 @@ uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry* pageTable) 
 /// and we have a single unsegmented page table.
 AddressSpace::AddressSpace(OpenFile *executable_file)
 {
+#ifdef USE_TLB
+    ASSERT(executable_file != nullptr);
+
+    exe = new Executable(executable_file);
+    ASSERT(exe->CheckMagic());
+
+    unsigned size = exe->GetSize() + USER_STACK_SIZE;
+
+    numPages = DivRoundUp(size, PAGE_SIZE);
+    size = numPages * PAGE_SIZE;
+
+    pageTable = new TranslationEntry[numPages];
+    for (unsigned i = 0; i < numPages; ++i) {
+        pageTable[i].virtualPage  = i;
+        pageTable[i].physicalPage = 0;
+        pageTable[i].valid        = false;
+        pageTable[i].use          = false;
+        pageTable[i].dirty        = false;
+        pageTable[i].readOnly     = false;
+    }
+
+#else
     ASSERT(executable_file != nullptr);
 
     Executable exe (executable_file);
@@ -130,6 +152,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         virtualAddr += writeSize;
         remaining   -= writeSize;
     }
+
+    // TODO: cerrar el archivo
+#endif
 }
 
 /// Deallocate an address space.
@@ -197,9 +222,72 @@ AddressSpace::RestoreState()
 TranslationEntry*
 AddressSpace::GetTranslationEntry(unsigned virtualPage)
 {
-	if (virtualPage < numPages) {
-        return &pageTable[virtualPage];
-    } else {
+	if (virtualPage >= numPages) {
         return nullptr;
     }
+
+#ifdef USE_TLB
+    if (!pageTable[virtualPage].valid) {
+
+        pageTable[virtualPage].physicalPage = physPages->Find();
+        pageTable[virtualPage].valid   = true;
+
+        uint32_t const virtualStart = virtualPage * PAGE_SIZE;
+        uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
+
+        uint32_t const virtualCodeStart = exe->GetCodeAddr();
+        uint32_t const virtualCodeEnd = virtualCodeStart + exe->GetCodeSize();
+
+        uint32_t const virtualInitDataStart = exe->GetInitDataAddr();
+        uint32_t const virtualInitDataEnd = virtualInitDataStart + exe->GetInitDataSize();
+
+        uint32_t const virtualUninitDataStart = exe->GetInitDataSize() > 0 ? virtualInitDataEnd : virtualCodeEnd;
+        uint32_t const virtualUninitDataEnd = virtualUninitDataStart + exe->GetUninitDataSize();
+
+        char *mainMemory = machine->GetMMU()->mainMemory;
+
+        // code: cargar codigo
+        if (virtualStart <= virtualCodeEnd && virtualEnd >= virtualCodeStart) {
+            uint32_t virtualCopyStart = max(virtualCodeStart, virtualStart);
+            uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualCodeEnd);
+
+            uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+            uint32_t segmentOff = virtualCopyStart - virtualCodeStart;
+
+            uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+            exe->ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+            pageTable[virtualPage].readOnly = true;
+        }
+
+        // data: cargar data
+        if (virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
+            uint32_t virtualCopyStart = max(virtualInitDataStart, virtualStart);
+            uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualInitDataEnd);
+
+            uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+            uint32_t segmentOff = virtualCopyStart - virtualInitDataStart;
+
+            uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+            exe->ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+            pageTable[virtualPage].readOnly = false;
+        }
+
+        // bss: cargar cero
+        if (virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
+            uint32_t virtualCopyStart = max(virtualUninitDataStart, virtualStart);
+            uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualUninitDataEnd);
+
+            uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+
+            uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+            memset(&mainMemory[physicalAddr], 0, writeSize);
+            pageTable[virtualPage].readOnly = false;
+        }
+    }
+#endif
+
+    return &pageTable[virtualPage];
 }
