@@ -48,10 +48,15 @@ public:
     void SaveState();
     void RestoreState();
 
-    // returns a pointer to the translation entry associated with
-    // with the given page, or nullptr if it is outside of the
-    // virtual address space.
-    TranslationEntry* GetTranslationEntry(unsigned virtualPage);
+    /// Returns a pointer to the translation entry associated with the
+    /// given page, or nullptr if it is outside of the virtual address space.
+    ///
+    /// * `virtualPage` is the requested page.
+    const TranslationEntry* GetTranslationEntry(unsigned virtualPage);
+
+    /// Evict an entry from the machine TLB and save its metadata into the page
+    /// table. Return the index evicted TLB entry.
+    unsigned EvictTlb();
 
 private:
 
@@ -63,8 +68,10 @@ private:
 
 #ifdef USE_TLB
     Executable* exe;
-#endif
 
+    /// Next tlb victim.
+    unsigned tlbVictim;
+#endif
 };
 
 

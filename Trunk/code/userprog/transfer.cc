@@ -19,7 +19,14 @@ void ReadBufferFromUser(int userAddress, char *outBuffer,
     do {
         int temp;
         count++;
+#ifndef VMEM
         ASSERT(machine->ReadMem(userAddress++, 1, &temp));
+#else
+        if (!machine->ReadMem(userAddress++, 1, &temp)) {
+            /// Reintentar si hubo un fallo.
+            machine->ReadMem(userAddress++, 1, &temp);
+        }
+#endif
         *outBuffer = (unsigned char) temp;
         outBuffer++;
     } while (count < byteCount);
@@ -37,7 +44,14 @@ bool ReadStringFromUser(int userAddress, char *outString,
     do {
         int temp;
         count++;
+#ifndef VMEM
         ASSERT(machine->ReadMem(userAddress++, 1, &temp));
+#else
+        if (!machine->ReadMem(userAddress++, 1, &temp)) {
+            /// Reintentar si hubo un fallo.
+            machine->ReadMem(userAddress++, 1, &temp);
+        }
+#endif
         *outString = (unsigned char) temp;
     } while (*outString++ != '\0' && count < maxByteCount);
 
@@ -54,7 +68,14 @@ void WriteBufferToUser(const char *buffer, int userAddress,
     unsigned count = 0;
     do {
         count++;
+#ifndef VMEM
         ASSERT(machine->WriteMem(userAddress++, 1, (int) *(buffer++)));
+#else
+        if (!machine->WriteMem(userAddress++, 1, (int) *(buffer++))) {
+            /// Reintentar si hubo un fallo.
+            machine->WriteMem(userAddress++, 1, (int) *(buffer++));
+        }
+#endif
     } while (count < byteCount);
 }
 
@@ -64,6 +85,13 @@ void WriteStringToUser(const char *string, int userAddress)
     ASSERT(string != nullptr);
 
     do {
-        ASSERT(machine->WriteMem(userAddress++, 1, (int) *string));
+#ifndef VMEM
+        ASSERT(machine->WriteMem(userAddress++, 1, (int) *(string++)));
+#else
+        if (!machine->WriteMem(userAddress++, 1, (int) *(string++))) {
+            /// Reintentar si hubo un fallo.
+            machine->WriteMem(userAddress++, 1, (int) *(string++));
+        }
+#endif
     } while (*(string++) != '\0');
 }
