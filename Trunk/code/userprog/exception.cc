@@ -472,16 +472,18 @@ PageFaultHandler(ExceptionType _et)
 
     DEBUG('e', "TLB miss en pagina %u\n", virtualPage);
 
-    AddressSpace* addressSpace = currentThread->space;
+    const TranslationEntry* entry = currentThread->space->GetTranslationEntry(virtualPage);
 
-    TranslationEntry* entry = addressSpace->GetTranslationEntry(virtualPage);
+    if (entry == nullptr) {
+        printf("Error: segmentation fault.\n");
+        currentThread->Exit(-1);
+    }
 
-    ASSERT(entry); // TODO: segmentation fault
+    // Desalojamos una entrada de la tlb.
+    unsigned victim = currentThread->space->EvictTlb();
 
-    // Elegimos cual entrada de la TLB reemplazar heuristicamente
-    unsigned tlbIndex = virtualPage % TLB_SIZE;
-
-    machine->GetMMU()->tlb[tlbIndex] = *entry;
+    // Escribimos sobre la pagina victima.
+    machine->GetMMU()->tlb[victim] = *entry;
 
     DEBUG('e', "pagina %u cargada en TLB\n", virtualPage);
 }
@@ -494,8 +496,13 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
+#ifdef VMEM
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler);
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
+#else
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler);
+    machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
+#endif
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);
     machine->SetHandler(OVERFLOW_EXCEPTION,      &DefaultHandler);

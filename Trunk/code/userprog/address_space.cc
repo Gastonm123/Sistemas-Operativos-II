@@ -128,6 +128,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         uninitDataSize -= writeSize;
         offset          = 0;
     }
+
+    /// Initialize tlbVictim
+    tlbVictim = 0;
 }
 
 /// Deallocate an address space.
@@ -170,12 +173,14 @@ AddressSpace::InitRegisters()
 }
 
 /// On a context switch, save any machine state, specific to this address
-/// space, that needs saving.
-///
-/// For now, nothing!
+/// space, that needs saving. That means save TLB changes.
 void
 AddressSpace::SaveState()
-{}
+{
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        EvictTlb();
+    }
+}
 
 /// On a context switch, restore the machine state so that this address space
 /// can run.
@@ -185,19 +190,40 @@ void
 AddressSpace::RestoreState()
 {
 #ifdef USE_TLB
-    machine->GetMMU()->pageTable = nullptr;
+    TranslationEntry *tlb = machine->GetMMU()->tlb;
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        tlb[i].valid = false;
+    }
 #else
     machine->GetMMU()->pageTable = pageTable;
     machine->GetMMU()->pageTableSize = numPages;
 #endif
 }
 
-TranslationEntry*
+const TranslationEntry*
 AddressSpace::GetTranslationEntry(unsigned virtualPage)
 {
-	if (virtualPage < numPages) {
+    ASSERT(currentThread->space == this);
+
+    if (virtualPage < numPages) {
         return &pageTable[virtualPage];
-    } else {
+    }
+    else {
         return nullptr;
     }
+}
+
+unsigned
+AddressSpace::EvictTlb() {
+    ASSERT(currentThread->space == this);
+
+    TranslationEntry *victim = &machine->GetMMU()->tlb[tlbVictim];
+    if (victim->valid) {
+        pageTable[victim->virtualPage] = *victim;
+    }
+
+    /// Increment tlbVictim.
+    unsigned _tlbVictim = tlbVictim;
+    tlbVictim = (tlbVictim + 1) % TLB_SIZE;
+    return _tlbVictim;
 }
