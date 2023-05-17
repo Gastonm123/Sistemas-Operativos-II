@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
 
 /// This is put at the top of the execution stack, for detecting stack
@@ -384,6 +385,12 @@ Thread::Exit(int exitStatus)
     ASSERT(space != nullptr);
 
     DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
+
+    /// The main thread is responsible for halting the machine once the user
+    /// space exits.
+    if (!strcmp(name, "main")) {
+        interrupt->Halt();
+    }
 
     threadToBeDestroyed = currentThread;
     Sleep();  // Invokes `SWITCH`.
