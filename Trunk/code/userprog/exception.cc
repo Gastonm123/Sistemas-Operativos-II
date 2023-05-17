@@ -464,6 +464,7 @@ READ_FAILURE:
     IncrementPC();
 }
 
+#ifdef USE_TLB
 void
 PageFaultHandler(ExceptionType _et)
 {
@@ -487,6 +488,7 @@ PageFaultHandler(ExceptionType _et)
 
     DEBUG('e', "pagina %u cargada en TLB\n", virtualPage);
 }
+#endif
 
 
 /// By default, only system calls have their own handler.  All other
@@ -496,7 +498,7 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
-#ifdef VMEM
+#ifdef USE_TLB
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler);
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
 #else

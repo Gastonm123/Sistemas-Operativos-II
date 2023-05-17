@@ -93,7 +93,7 @@ Thread::~Thread()
     delete space;
     delete joinChannel;
     // Cerrar archivos abiertos.
-    for (int fd = 0; fd < openFiles->SIZE; fd++) {
+    for (unsigned fd = 0; fd < openFiles->SIZE; fd++) {
         OpenFile *file = openFiles->Get(fd);
         if (file) {
             delete file;

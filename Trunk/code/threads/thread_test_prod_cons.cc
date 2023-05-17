@@ -21,50 +21,50 @@ static List<int>* buffer;
 void
 Producer(void*)
 {
-	for (int i = 0; i < NUM_ITEMS; ++i) {
+    for (unsigned i = 0; i < NUM_ITEMS; ++i) {
 
-		// Pass the current iteration number for testing purposes
-		int message = i;
+        // Pass the current iteration number for testing purposes
+        int message = i;
 
-		lock->Acquire();
-		buffer->Append(message);
-		lock->Release();
-		sem->V();
-	}
-	printf("Producer finished.\n");
+        lock->Acquire();
+        buffer->Append(message);
+        lock->Release();
+        sem->V();
+    }
+    printf("Producer finished.\n");
 }
 
 void
 Consumer(void*)
 {
-	for (int i = 0; i < NUM_ITEMS; ++i) {
-		sem->P();
-		lock->Acquire();
-		int message = buffer->Pop();
-		lock->Release();
+    for (unsigned i = 0; i < NUM_ITEMS; ++i) {
+        sem->P();
+        lock->Acquire();
+        int message = buffer->Pop();
+        lock->Release();
 
-		printf("Consumer received message %d\n", message);
-	}
-	printf("Consumer finished.\n");
+        printf("Consumer received message %d\n", message);
+    }
+    printf("Consumer finished.\n");
 }
 
 void
 ThreadTestProdCons()
 {
-	lock = new Lock("prod_cons lock");
-	sem = new Semaphore("prod_cons semaphore", 0);
-	buffer = new List<int>();
+    lock = new Lock("prod_cons lock");
+    sem = new Semaphore("prod_cons semaphore", 0);
+    buffer = new List<int>();
 
-	Thread* producer = new Thread("producer", true);
-	Thread* consumer = new Thread("consumer", true);
+    Thread* producer = new Thread("producer", true);
+    Thread* consumer = new Thread("consumer", true);
 
-	producer->Fork(Producer, nullptr);
-	consumer->Fork(Consumer, nullptr);
+    producer->Fork(Producer, nullptr);
+    consumer->Fork(Consumer, nullptr);
 
-	producer->Join();
-	consumer->Join();
+    producer->Join();
+    consumer->Join();
 
-	delete lock;
-	delete sem;
-	delete buffer;
+    delete lock;
+    delete sem;
+    delete buffer;
 }

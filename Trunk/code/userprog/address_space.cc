@@ -57,7 +57,6 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 
     /// Initialize tlbVictim
     tlbVictim = 0;
-
 #else
     ASSERT(executable_file != nullptr);
 
@@ -155,8 +154,6 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
         virtualAddr += writeSize;
         remaining   -= writeSize;
     }
-
-    // TODO: cerrar el archivo
 #endif
 }
 
@@ -169,6 +166,9 @@ AddressSpace::~AddressSpace()
         physPages->Clear(pageTable[i].physicalPage);
     }
     delete [] pageTable;
+#ifdef USE_TLB
+    delete exe;
+#endif
 }
 
 /// Set the initial values for the user-level register set.
@@ -200,19 +200,19 @@ AddressSpace::InitRegisters()
 }
 
 /// On a context switch, save any machine state, specific to this address
-/// space, that needs saving. That means save TLB changes.
+/// space, that needs saving. When using TLB, all its records are evicted.
 void
 AddressSpace::SaveState()
 {
+#ifdef USE_TLB
     for (unsigned i = 0; i < TLB_SIZE; i++) {
         EvictTlb();
     }
+#endif
 }
 
 /// On a context switch, restore the machine state so that this address space
-/// can run.
-///
-/// For now, tell the machine where to find the page table.
+/// can run. When using TLB, invalidate all previous records.
 void
 AddressSpace::RestoreState()
 {
@@ -302,6 +302,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
     return &pageTable[virtualPage];
 }
 
+#ifdef USE_TLB
 unsigned
 AddressSpace::EvictTlb() {
     ASSERT(currentThread->space == this);
@@ -316,3 +317,4 @@ AddressSpace::EvictTlb() {
     tlbVictim = (tlbVictim + 1) % TLB_SIZE;
     return _tlbVictim;
 }
+#endif

@@ -54,9 +54,11 @@ public:
     /// * `virtualPage` is the requested page.
     const TranslationEntry* GetTranslationEntry(unsigned virtualPage);
 
+#ifdef USE_TLB
     /// Evict an entry from the machine TLB and save its metadata into the page
     /// table. Return the index evicted TLB entry.
     unsigned EvictTlb();
+#endif
 
 private:
 
