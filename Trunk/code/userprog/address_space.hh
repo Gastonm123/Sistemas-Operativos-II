@@ -33,9 +33,9 @@ public:
     /// executed.
     ///
     /// Parameters:
-    /// * `executable_file` is the open file that corresponds to the
+    /// * `executableFile` is the open file that corresponds to the
     ///   program; it contains the object code to load into memory.
-    AddressSpace(OpenFile *executable_file);
+    AddressSpace(OpenFile *executableFile);
 
     /// De-allocate an address space.
     ~AddressSpace();
@@ -69,7 +69,8 @@ private:
     unsigned numPages;
 
 #ifdef USE_TLB
-    Executable* exe;
+    /// Executable of the program file.
+    Executable *exe;
 
     /// Next tlb victim.
     unsigned tlbVictim;

@@ -310,6 +310,14 @@ SyscallHandler(ExceptionType _et)
             thread->space = space;
             thread->Fork(RunUserProgram, argv);
 
+#ifdef USE_TLB
+            /// Demand loading requires that the executable file is open all the
+            /// time.
+            openFiles->Add(file);
+#else
+            delete file;
+#endif
+
             unsigned tid = thread->GetTid();
             machine->WriteRegister(2, tid);
 

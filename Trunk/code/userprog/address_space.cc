@@ -32,12 +32,12 @@ uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry* pageTable) 
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-AddressSpace::AddressSpace(OpenFile *executable_file)
+AddressSpace::AddressSpace(OpenFile *executableFile)
 {
 #ifdef USE_TLB
-    ASSERT(executable_file != nullptr);
+    ASSERT(executableFile != nullptr);
 
-    exe = new Executable(executable_file);
+    exe  = new Executable(executableFile);
     ASSERT(exe->CheckMagic());
 
     unsigned size = exe->GetSize() + USER_STACK_SIZE;
@@ -58,9 +58,9 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     /// Initialize tlbVictim
     tlbVictim = 0;
 #else
-    ASSERT(executable_file != nullptr);
+    ASSERT(executableFile != nullptr);
 
-    Executable exe (executable_file);
+    Executable exe (executableFile);
     ASSERT(exe.CheckMagic());
 
     // How big is address space?
