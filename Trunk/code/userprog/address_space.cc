@@ -245,16 +245,21 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         uint32_t const virtualStart = virtualPage * PAGE_SIZE;
         uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
 
+        uint32_t const codeSize = exe->GetCodeSize();
         uint32_t const virtualCodeStart = exe->GetCodeAddr();
-        uint32_t const virtualCodeEnd = virtualCodeStart + exe->GetCodeSize();
+        uint32_t const virtualCodeEnd = virtualCodeStart + codeSize;
 
+        uint32_t const initDataSize = exe->GetInitDataSize();
         uint32_t const virtualInitDataStart = exe->GetInitDataAddr();
-        uint32_t const virtualInitDataEnd = virtualInitDataStart + exe->GetInitDataSize();
+        uint32_t const virtualInitDataEnd = virtualInitDataStart + initDataSize;
 
-        uint32_t const virtualUninitDataStart = exe->GetInitDataSize() > 0 ? virtualInitDataEnd : virtualCodeEnd;
-        uint32_t const virtualUninitDataEnd = virtualUninitDataStart + exe->GetUninitDataSize();
+        uint32_t const uninitDataSize = exe->GetUninitDataSize();
+        uint32_t const virtualUninitDataStart = initDataSize > 0 ? virtualInitDataEnd : virtualCodeEnd;
+        uint32_t const virtualUninitDataEnd = virtualUninitDataStart + uninitDataSize;
 
         char *mainMemory = machine->GetMMU()->mainMemory;
+
+        ASSERT(codeSize > 0);
 
         // code: cargar codigo
         if (virtualStart <= virtualCodeEnd && virtualEnd >= virtualCodeStart) {
@@ -271,7 +276,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         }
 
         // data: cargar data
-        if (virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
+        if (initDataSize > 0 && virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
             uint32_t virtualCopyStart = max(virtualInitDataStart, virtualStart);
             uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualInitDataEnd);
 
@@ -285,7 +290,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         }
 
         // bss: cargar cero
-        if (virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
+        if (uninitDataSize > 0 && virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
             uint32_t virtualCopyStart = max(virtualUninitDataStart, virtualStart);
             uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualUninitDataEnd);
 
