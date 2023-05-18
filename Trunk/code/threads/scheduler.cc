@@ -79,6 +79,8 @@ Scheduler::Run(Thread *nextThread)
 {
     ASSERT(nextThread != nullptr);
 
+    stats->numContextSwitch++;
+
     Thread *oldThread = currentThread;
 
 #ifdef USER_PROGRAM  // Ignore until running user programs.
