@@ -18,13 +18,13 @@
 #include "vmem/core_map.hh"
 #endif
 
-uint32_t TranslatePage(uint32_t virtualPage, TranslationEntry* pageTable) {
+uint32_t TranslatePage(uint32_t virtualPage, TranslationEntry const* pageTable) {
     uint32_t physicalPage = pageTable[virtualPage].physicalPage;
 
     return physicalPage;
 }
 
-uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry* pageTable) {
+uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry const* pageTable) {
     uint32_t virtualPage = virtualAddress / PAGE_SIZE;
     uint32_t offset      = virtualAddress % PAGE_SIZE;
 
@@ -268,11 +268,11 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         uint32_t const virtualStart = virtualPage * PAGE_SIZE;
         uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
 
-	uint32_t const codeSize = exe->GetCodeSize();
+        uint32_t const codeSize = exe->GetCodeSize();
         uint32_t const virtualCodeStart = exe->GetCodeAddr();
         uint32_t const virtualCodeEnd = virtualCodeStart + codeSize;
 
-	uint32_t const initDataSize = exe->GetInitDataSize();
+        uint32_t const initDataSize = exe->GetInitDataSize();
         uint32_t const virtualInitDataStart = exe->GetInitDataAddr();
         uint32_t const virtualInitDataEnd = virtualInitDataStart + initDataSize;
 
@@ -287,7 +287,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         // code: cargar codigo
         if (virtualStart <= virtualCodeEnd && virtualEnd >= virtualCodeStart) {
             uint32_t virtualCopyStart = max(virtualCodeStart, virtualStart);
-            uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualCodeEnd);
+            uint32_t virtualCopyEnd = min(virtualEnd, virtualCodeEnd);
 
             uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
             uint32_t segmentOff = virtualCopyStart - virtualCodeStart;
@@ -301,7 +301,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         // data: cargar data
         if (initDataSize > 0 && virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
             uint32_t virtualCopyStart = max(virtualInitDataStart, virtualStart);
-            uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualInitDataEnd);
+            uint32_t virtualCopyEnd = min(virtualEnd, virtualInitDataEnd);
 
             uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
             uint32_t segmentOff = virtualCopyStart - virtualInitDataStart;
@@ -315,7 +315,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         // bss: cargar cero
         if (uninitDataSize > 0 && virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
             uint32_t virtualCopyStart = max(virtualUninitDataStart, virtualStart);
-            uint32_t virtualCopyEnd = min(virtualCopyStart + PAGE_SIZE, virtualUninitDataEnd);
+            uint32_t virtualCopyEnd = min(virtualEnd, virtualUninitDataEnd);
 
             uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
 
