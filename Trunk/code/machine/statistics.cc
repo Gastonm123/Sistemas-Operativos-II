@@ -21,10 +21,13 @@ Statistics::Statistics()
     numDiskReads = numDiskWrites = 0;
     numConsoleCharsRead = numConsoleCharsWritten = 0;
     numPageFaults = numPacketsSent = numPacketsRecvd = 0;
+    numContextSwitch = 0;
 #ifdef DFS_TICKS_FIX
     tickResets = 0;
 #endif
-
+#ifdef USE_TLB
+    tlbHits = tlbMisses = 0;
+#endif
 }
 
 /// Print performance metrics, when we have finished everything at system
@@ -46,4 +49,9 @@ Statistics::Print()
     printf("Paging: faults %lu\n", numPageFaults);
     printf("Network I/O: packets received %lu, sent %lu\n",
            numPacketsRecvd, numPacketsSent);
+    printf("Scheduler: context switches %lu\n", numContextSwitch);
+#ifdef USE_TLB
+    /// After every miss a hit will proceed so we discount those hits.
+    printf("TLB access: hits %lu, misses %lu\n", tlbHits-tlbMisses, tlbMisses);
+#endif
 }

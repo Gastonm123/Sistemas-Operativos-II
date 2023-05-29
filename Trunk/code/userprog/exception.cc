@@ -310,6 +310,14 @@ SyscallHandler(ExceptionType _et)
             thread->space = space;
             thread->Fork(RunUserProgram, argv);
 
+#ifdef USE_TLB
+            /// Demand loading requires that the executable file is open all the
+            /// time.
+            openFiles->Add(file);
+#else
+            delete file;
+#endif
+
             unsigned tid = thread->GetTid();
             machine->WriteRegister(2, tid);
 
@@ -464,6 +472,32 @@ READ_FAILURE:
     IncrementPC();
 }
 
+#ifdef USE_TLB
+void
+PageFaultHandler(ExceptionType _et)
+{
+    unsigned virtualAddress = machine->ReadRegister(BAD_VADDR_REG);
+    unsigned virtualPage = virtualAddress / PAGE_SIZE;
+
+    DEBUG('e', "TLB miss en pagina %u\n", virtualPage);
+
+    const TranslationEntry* entry = currentThread->space->GetTranslationEntry(virtualPage);
+
+    if (entry == nullptr) {
+        printf("Error: segmentation fault.\n");
+        currentThread->Exit(-1);
+    }
+
+    // Desalojamos una entrada de la tlb.
+    unsigned victim = currentThread->space->EvictTlb();
+
+    // Escribimos sobre la pagina victima.
+    machine->GetMMU()->tlb[victim] = *entry;
+
+    DEBUG('e', "pagina %u cargada en TLB\n", virtualPage);
+}
+#endif
+
 
 /// By default, only system calls have their own handler.  All other
 /// exception types are assigned the default handler.
@@ -472,8 +506,13 @@ SetExceptionHandlers()
 {
     machine->SetHandler(NO_EXCEPTION,            &DefaultHandler);
     machine->SetHandler(SYSCALL_EXCEPTION,       &SyscallHandler);
+#ifdef USE_TLB
+    machine->SetHandler(PAGE_FAULT_EXCEPTION,    &PageFaultHandler);
+    machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
+#else
     machine->SetHandler(PAGE_FAULT_EXCEPTION,    &DefaultHandler);
     machine->SetHandler(READ_ONLY_EXCEPTION,     &DefaultHandler);
+#endif
     machine->SetHandler(BUS_ERROR_EXCEPTION,     &DefaultHandler);
     machine->SetHandler(ADDRESS_ERROR_EXCEPTION, &DefaultHandler);
     machine->SetHandler(OVERFLOW_EXCEPTION,      &DefaultHandler);

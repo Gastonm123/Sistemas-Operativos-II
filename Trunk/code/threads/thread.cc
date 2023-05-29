@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
 
 /// This is put at the top of the execution stack, for detecting stack
@@ -93,7 +94,7 @@ Thread::~Thread()
     delete space;
     delete joinChannel;
     // Cerrar archivos abiertos.
-    for (int fd = 0; fd < openFiles->SIZE; fd++) {
+    for (unsigned fd = 0; fd < openFiles->SIZE; fd++) {
         OpenFile *file = openFiles->Get(fd);
         if (file) {
             delete file;
@@ -384,6 +385,12 @@ Thread::Exit(int exitStatus)
     ASSERT(space != nullptr);
 
     DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
+
+    /// The main thread is responsible for halting the machine once the user
+    /// space exits.
+    if (!strcmp(name, "main")) {
+        interrupt->Halt();
+    }
 
     threadToBeDestroyed = currentThread;
     Sleep();  // Invokes `SWITCH`.

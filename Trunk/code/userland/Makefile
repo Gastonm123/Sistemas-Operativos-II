@@ -33,17 +33,17 @@ INCLUDE_DIRS = -I../userprog -I../threads
 CFLAGS       = -std=c99 -G 0 -c $(INCLUDE_DIRS) -mips1 -mfp32 \
                -nostdlib -nostartfiles -nodefaultlibs -fno-pic -mno-abicalls
 
-PROGRAMS = echo filetest halt matmult shell sort tiny_shell touch echo2 hello \
-           cat cp rm test_ps
+PROGRAMS = echo filetest halt matmult shell tiny_shell touch echo2 hello \
+           cat cp rm test_ps test
 
 
 .PHONY: all clean
 
-all: $(PROGRAMS)
+all: $(PROGRAMS) sort
 
 clean:
 	@echo ":: Cleaning $$(tput bold)$(notdir $(CURDIR))$$(tput sgr0)"
-	@$(RM) *.o *.coff $(PROGRAMS) || true
+	@$(RM) *.o *.coff $(PROGRAMS) sort || true
 
 start.o: start.s ../userprog/syscall.h
 	@echo ":: Compiling $$(tput bold)$@$$(tput sgr0)"
@@ -59,6 +59,11 @@ start.o: start.s ../userprog/syscall.h
 %.o: %.c
 	@echo ":: Compiling $$(tput bold)$@$$(tput sgr0)"
 	@$(CC) $(CFLAGS) -c $^
+
+sort: sort.o lib.o start.o
+	@echo ":: Linking and converting $$(tput bold)$@$$(tput sgr0)"
+	@$(LD) $(LDFLAGS) start.o lib.o $@.o -o $@.coff
+	@../bin/coff2noff $@.coff $@
 
 $(PROGRAMS): %: %.o start.o
 	@echo ":: Linking and converting $$(tput bold)$@$$(tput sgr0)"

@@ -20,6 +20,7 @@
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 
+class Executable;
 
 class AddressSpace {
 public:
@@ -32,9 +33,9 @@ public:
     /// executed.
     ///
     /// Parameters:
-    /// * `executable_file` is the open file that corresponds to the
+    /// * `executableFile` is the open file that corresponds to the
     ///   program; it contains the object code to load into memory.
-    AddressSpace(OpenFile *executable_file);
+    AddressSpace(OpenFile *executableFile);
 
     /// De-allocate an address space.
     ~AddressSpace();
@@ -47,6 +48,18 @@ public:
     void SaveState();
     void RestoreState();
 
+    /// Returns a pointer to the translation entry associated with the
+    /// given page, or nullptr if it is outside of the virtual address space.
+    ///
+    /// * `virtualPage` is the requested page.
+    const TranslationEntry* GetTranslationEntry(unsigned virtualPage);
+
+#ifdef USE_TLB
+    /// Evict an entry from the machine TLB and save its metadata into the page
+    /// table. Return the index evicted TLB entry.
+    unsigned EvictTlb();
+#endif
+
 private:
 
     /// Assume linear page table translation for now!
@@ -55,6 +68,13 @@ private:
     /// Number of pages in the virtual address space.
     unsigned numPages;
 
+#ifdef USE_TLB
+    /// Executable of the program file.
+    Executable *exe;
+
+    /// Next tlb victim.
+    unsigned tlbVictim;
+#endif
 };
 
 
