@@ -265,6 +265,10 @@ Initialize(int argc, char **argv)
 #ifdef NETWORK
     postOffice = new PostOffice(netname, rely, 10);
 #endif
+
+#ifdef USE_TLB
+    coreMap = new CoreMap();
+#endif
 }
 
 /// Nachos is halting.  De-allocate global data structures.
