@@ -26,6 +26,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef USE_TLB
+#include "vmem/core_map.hh"
+#endif
 
 /// This is put at the top of the execution stack, for detecting stack
 /// overflows.
@@ -391,6 +394,12 @@ Thread::Exit(int exitStatus)
     if (!strcmp(name, "main")) {
         interrupt->Halt();
     }
+#ifdef USE_TLB 
+    /// Marcamos el thread como inactivo en el core map.
+    /// Ahora podemos quitarle paginas fisicas sin enviarlas al swap.
+    /// TODO: esto tambien deberia estar en otro lado?
+    coreMap->RemoveCurrentThread(); 
+#endif
 
     threadToBeDestroyed = currentThread;
     Sleep();  // Invokes `SWITCH`.

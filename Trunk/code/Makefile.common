@@ -123,8 +123,10 @@ USERPROG_SRC = userprog/address_space.cc            \
                machine/mmu.cc                       \
 	       userprog/synch_console.cc
 
-VMEM_HDR =
-VMEM_SRC =
+VMEM_HDR = vmem/core_map.hh \
+           vmem/swap.hh
+VMEM_SRC = vmem/core_map.cc \
+           vmem/swap.cc
 
 FILESYS_HDR = filesys/directory.hh       \
               filesys/directory_entry.hh \

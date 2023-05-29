@@ -13,6 +13,11 @@
 
 #include <string.h>
 
+#ifdef USE_TLB
+#include "vmem/swap.hh"
+#include "vmem/core_map.hh"
+#endif
+
 uint32_t TranslatePage(uint32_t virtualPage, TranslationEntry* pageTable) {
     uint32_t physicalPage = pageTable[virtualPage].physicalPage;
 
@@ -53,10 +58,13 @@ AddressSpace::AddressSpace(OpenFile *executableFile)
         pageTable[i].use          = false;
         pageTable[i].dirty        = false;
         pageTable[i].readOnly     = false;
+        pageTable[i].swap         = false; 
     }
 
     /// Initialize tlbVictim
     tlbVictim = 0;
+
+    swap = new SWAP();
 #else
     ASSERT(executableFile != nullptr);
 
@@ -87,6 +95,7 @@ AddressSpace::AddressSpace(OpenFile *executableFile)
         pageTable[i].use          = false;
         pageTable[i].dirty        = false;
         pageTable[i].readOnly     = false;
+        pageTable[i].swap         = false;
           // If the code segment was entirely on a separate page, we could
           // set its pages to be read-only.
     }
@@ -168,6 +177,7 @@ AddressSpace::~AddressSpace()
     delete [] pageTable;
 #ifdef USE_TLB
     delete exe;
+    delete swap;
 #endif
 }
 
@@ -207,7 +217,7 @@ AddressSpace::SaveState()
 #ifdef USE_TLB
     for (unsigned i = 0; i < TLB_SIZE; i++) {
         EvictTlb();
-    }
+    } 
 #endif
 }
 
@@ -227,6 +237,17 @@ AddressSpace::RestoreState()
 #endif
 }
 
+#ifdef USE_TLB
+unsigned
+FindPhysPage() {
+    unsigned page = physPages->Find();
+    if (page != -1) {
+        return page;
+    }
+    return coreMap->EvictPage();
+}
+#endif
+
 const TranslationEntry*
 AddressSpace::GetTranslationEntry(unsigned virtualPage)
 {
@@ -238,9 +259,11 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
 
 #ifdef USE_TLB
     if (!pageTable[virtualPage].valid) {
+        pageTable[virtualPage].valid = true;
 
-        pageTable[virtualPage].physicalPage = physPages->Find();
-        pageTable[virtualPage].valid   = true;
+        unsigned physicalPage = FindPhysPage();
+        pageTable[virtualPage].physicalPage = physicalPage; 
+        coreMap->RegisterPage(virtualPage, physicalPage);
 
         uint32_t const virtualStart = virtualPage * PAGE_SIZE;
         uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
@@ -297,6 +320,17 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
             pageTable[virtualPage].readOnly = false;
         }
     }
+    // Pagina valida en el SWAP.
+    else if (pageTable[virtualPage].swap) {
+        unsigned physicalPage = FindPhysPage();
+        swap->PullSWAP(virtualPage, physicalPage);
+
+        pageTable[virtualPage].physicalPage = physicalPage;
+        pageTable[virtualPage].swap = false;
+
+        coreMap->RegisterPage(virtualPage, physicalPage);
+    }
+
 #endif
 
     return &pageTable[virtualPage];
@@ -316,5 +350,24 @@ AddressSpace::EvictTlb() {
     unsigned _tlbVictim = tlbVictim;
     tlbVictim = (tlbVictim + 1) % TLB_SIZE;
     return _tlbVictim;
+}
+
+void
+AddressSpace::SwapPage(unsigned vpn) {
+    ASSERT(pageTable[vpn].valid);
+    ASSERT(!pageTable[vpn].swap);
+    
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        TranslationEntry *entry = &machine->GetMMU()->tlb[i];
+        if (entry->valid && entry->virtualPage == vpn) {
+	    // TODO: tiene sentido como estamos usando la flag valid?
+	    // en este caso da lo mismo hacer valid = false
+            entry->swap = true;
+        }
+    }    
+
+    unsigned ppn = pageTable[vpn].physicalPage;
+    swap->WriteSWAP(vpn, ppn);
+    pageTable[vpn].swap = true;
 }
 #endif

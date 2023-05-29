@@ -57,6 +57,10 @@ SynchConsole *ui;
 PostOffice *postOffice;
 #endif
 
+#ifdef USE_TLB
+CoreMap *coreMap;  ///< Mapa de la memoria.
+#endif
+
 // External definition, to allow us to take a pointer to this function.
 extern void Cleanup();
 
