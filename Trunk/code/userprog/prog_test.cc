@@ -31,7 +31,8 @@ StartProcess(const char *filename)
         return;
     }
 
-    AddressSpace *space = new AddressSpace(executable);
+    unsigned tid = currentThread->GetTid();
+    AddressSpace *space = new AddressSpace(executable, tid);
     currentThread->space = space;
 
 #ifdef USE_TLB

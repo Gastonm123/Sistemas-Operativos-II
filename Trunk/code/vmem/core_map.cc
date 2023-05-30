@@ -30,14 +30,14 @@ CoreMap::EvictPage() {
     ASSERT(!coreMap->IsEmpty());
     CoreMapEntry *entry;
     do {
-	    entry = coreMap->Pop();
+        entry = coreMap->Pop();
         ASSERT(entry != nullptr);
     } while (entry->thread == nullptr);
 
+    entry->thread->space->SwapPage(entry->vpn);
+
     unsigned ppn = entry->ppn;
     physPages->Clear(ppn);
-
-    entry->thread->space->SwapPage(entry->vpn);
 
     delete entry;
     return ppn;

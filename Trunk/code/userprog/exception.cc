@@ -92,7 +92,6 @@ RunUserProgram(void *_argv) {
         machine->WriteRegister(5, sp);
     }
 
-    // Ad-hoc fix para rarezas de la ABI de MIPS
     FixStack();
 
     machine->Run(); // Jump to user program.
@@ -124,6 +123,8 @@ SyscallHandler(ExceptionType _et)
 {
     int scid = machine->ReadRegister(2);
     Table<OpenFile*> *openFiles = currentThread->openFiles;
+
+    DEBUG('e', "MANEJANDO SYSCALL ID: %d\n", scid);
 
     switch (scid) {
 
@@ -272,6 +273,8 @@ SyscallHandler(ExceptionType _et)
             int filenameAddr = machine->ReadRegister(4);
             int argvAddr = machine->ReadRegister(5);
 
+            DEBUG('e', "`EXEC` pedido con argumentos `%u` y `%u`.\n", filenameAddr, argvAddr);
+
             if (filenameAddr == 0) {
                 DEBUG('e', "Error: address to filename string is null.\n");
                 machine->WriteRegister(2, SC_FAILURE);
@@ -286,6 +289,8 @@ SyscallHandler(ExceptionType _et)
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }
+
+            DEBUG('e', "`EXEC` pedido para el ejecutable `%s`.\n", filename);
 
             OpenFile *file = fileSystem->Open(filename);
             if (!file) {
@@ -303,10 +308,10 @@ SyscallHandler(ExceptionType _et)
                 argv = SaveArgs(argvAddr);
             }
 
-            DEBUG('e', "`EXEC` pedido para el ejecutable `%s`.\n", filename);
-
-            AddressSpace *space = new AddressSpace(file);
             Thread *thread = new Thread("user process", true);
+            unsigned tid = thread->GetTid();
+
+            AddressSpace *space = new AddressSpace(file, tid);
             thread->space = space;
             thread->Fork(RunUserProgram, argv);
 
@@ -318,7 +323,8 @@ SyscallHandler(ExceptionType _et)
             delete file;
 #endif
 
-            unsigned tid = thread->GetTid();
+            DEBUG('e', "`EXEC` devuelve tid: `%u`.\n", tid);
+
             machine->WriteRegister(2, tid);
 
             break;
@@ -327,14 +333,14 @@ SyscallHandler(ExceptionType _et)
         case SC_JOIN: {
             int tid = machine->ReadRegister(4);
             if (tid < 0) {
-                DEBUG('e', "Error: invalid space identifier.\n");
+                DEBUG('e', "Error: invalid space identifier: %d.\n", tid);
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }
 
             Thread *target = threadMap->Get(tid);
             if (!target) {
-                DEBUG('e', "Error: non existent space identifier.\n");
+                DEBUG('e', "Error: non existent space identifier: %d.\n", tid);
                 machine->WriteRegister(2, SC_FAILURE);
                 break;
             }

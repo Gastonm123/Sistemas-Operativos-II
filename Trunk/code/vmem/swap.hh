@@ -5,7 +5,7 @@ class OpenFile;
 
 class SWAP {
 public:
-    SWAP();
+    SWAP(unsigned id);
     ~SWAP();
     void WriteSWAP(unsigned vpn, unsigned ppn);
     void PullSWAP(unsigned vpn, unsigned ppn);

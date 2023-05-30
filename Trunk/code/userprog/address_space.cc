@@ -37,13 +37,16 @@ uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry const* pageT
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-AddressSpace::AddressSpace(OpenFile *executableFile)
+AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
 {
 #ifdef USE_TLB
     ASSERT(executableFile != nullptr);
 
     exe  = new Executable(executableFile);
     ASSERT(exe->CheckMagic());
+
+    this->asid = asid;
+    swap = new SWAP(asid);
 
     unsigned size = exe->GetSize() + USER_STACK_SIZE;
 
@@ -64,7 +67,6 @@ AddressSpace::AddressSpace(OpenFile *executableFile)
     /// Initialize tlbVictim
     tlbVictim = 0;
 
-    swap = new SWAP();
 #else
     ASSERT(executableFile != nullptr);
 
@@ -171,9 +173,9 @@ AddressSpace::AddressSpace(OpenFile *executableFile)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
-    for (unsigned i = 0; i < numPages; i++) {
-        physPages->Clear(pageTable[i].physicalPage);
-    }
+    // Las paginas fisicas se liberan en Thread::Exit
+    // usando CoreMap::RemoveCurrentThread
+
     delete [] pageTable;
 #ifdef USE_TLB
     delete exe;
@@ -253,12 +255,26 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
 {
     ASSERT(currentThread->space == this);
 
-	if (virtualPage >= numPages) {
+    if (virtualPage >= numPages) {
         return nullptr;
     }
 
 #ifdef USE_TLB
-    if (!pageTable[virtualPage].valid) {
+    if (pageTable[virtualPage].swap) {
+        ASSERT(!pageTable[virtualPage].valid);
+
+        unsigned physicalPage = FindPhysPage();
+        swap->PullSWAP(virtualPage, physicalPage);
+        DEBUG('x', "SWAPPING IN  VPN=%u ASID=%u\n", virtualPage, asid);
+
+        pageTable[virtualPage].physicalPage = physicalPage;
+        pageTable[virtualPage].valid = true;
+        pageTable[virtualPage].swap = false;
+
+        coreMap->RegisterPage(virtualPage, physicalPage);
+    }
+    else if (!pageTable[virtualPage].valid) {
+        ASSERT(!pageTable[virtualPage].swap);
         pageTable[virtualPage].valid = true;
 
         unsigned physicalPage = FindPhysPage();
@@ -326,15 +342,6 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         }
     }
     // Pagina valida en el SWAP.
-    else if (pageTable[virtualPage].swap) {
-        unsigned physicalPage = FindPhysPage();
-        swap->PullSWAP(virtualPage, physicalPage);
-
-        pageTable[virtualPage].physicalPage = physicalPage;
-        pageTable[virtualPage].swap = false;
-
-        coreMap->RegisterPage(virtualPage, physicalPage);
-    }
 
 #endif
 
@@ -349,6 +356,7 @@ AddressSpace::EvictTlb() {
     TranslationEntry *victim = &machine->GetMMU()->tlb[tlbVictim];
     if (victim->valid) {
         pageTable[victim->virtualPage] = *victim;
+        victim->valid = false;
     }
 
     /// Increment tlbVictim.
@@ -359,20 +367,30 @@ AddressSpace::EvictTlb() {
 
 void
 AddressSpace::SwapPage(unsigned vpn) {
+    DEBUG('x', "SWAPPING OUT VPN=%u ASID=%u\n", vpn, asid);
+
     ASSERT(pageTable[vpn].valid);
     ASSERT(!pageTable[vpn].swap);
-    
+
     for (unsigned i = 0; i < TLB_SIZE; i++) {
         TranslationEntry *entry = &machine->GetMMU()->tlb[i];
         if (entry->valid && entry->virtualPage == vpn) {
-	    // TODO: tiene sentido como estamos usando la flag valid?
-	    // en este caso da lo mismo hacer valid = false
-            entry->swap = true;
+            entry->valid = false;
+            entry->swap = !entry->readOnly;
         }
     }    
 
-    unsigned ppn = pageTable[vpn].physicalPage;
-    swap->WriteSWAP(vpn, ppn);
-    pageTable[vpn].swap = true;
+    pageTable[vpn].valid = false;
+    pageTable[vpn].swap = !pageTable[vpn].readOnly;
+
+    if (pageTable[vpn].swap) {
+        unsigned ppn = pageTable[vpn].physicalPage;
+        swap->WriteSWAP(vpn, ppn);
+    }
 }
 #endif
+
+unsigned
+AddressSpace::GetASid() {
+    return asid;
+}

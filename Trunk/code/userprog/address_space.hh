@@ -36,7 +36,8 @@ public:
     /// Parameters:
     /// * `executableFile` is the open file that corresponds to the
     ///   program; it contains the object code to load into memory.
-    AddressSpace(OpenFile *executableFile);
+    /// * `asid` es el address space id.
+    AddressSpace(OpenFile *executableFile, unsigned asid);
 
     /// De-allocate an address space.
     ~AddressSpace();
@@ -61,8 +62,12 @@ public:
     unsigned EvictTlb();
 
     /// Move page to SWAP file; returns physical page.
+    /// * `vpn` is the virtual page number of the victim page.
     void SwapPage(unsigned vpn);
 #endif
+
+    /// Returns address space id.
+    unsigned GetASid();
 
 private:
 
@@ -72,6 +77,8 @@ private:
     /// Number of pages in the virtual address space.
     unsigned numPages;
 
+    /// Address space id (actualmente igual al tid).
+    unsigned asid;
 #ifdef USE_TLB
     /// Executable of the program file.
     Executable *exe;

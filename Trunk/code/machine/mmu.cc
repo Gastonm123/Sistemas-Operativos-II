@@ -198,7 +198,7 @@ MMU::RetrievePageEntry(unsigned vpn, TranslationEntry **entry) const
         unsigned i;
         for (i = 0; i < TLB_SIZE; i++) {
             TranslationEntry *e = &tlb[i];
-            if (e->valid && !e->swap && e->virtualPage == vpn) {
+            if (e->valid && e->virtualPage == vpn) {
                 *entry = e;  // FOUND!
                 return NO_EXCEPTION;
             }
