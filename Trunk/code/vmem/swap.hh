@@ -3,12 +3,12 @@
 
 class OpenFile;
 
-class SWAP {
+class Swap {
 public:
-    SWAP(unsigned id);
-    ~SWAP();
-    void WriteSWAP(unsigned vpn, unsigned ppn);
-    void PullSWAP(unsigned vpn, unsigned ppn);
+    Swap(unsigned id);
+    ~Swap();
+    void WriteSwap(unsigned vpn, unsigned ppn);
+    void PullSwap(unsigned vpn, unsigned ppn);
 
 private:
     char name[10];

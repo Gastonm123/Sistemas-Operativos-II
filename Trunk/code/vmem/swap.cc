@@ -1,19 +1,19 @@
 #include "swap.hh"
 #include "threads/system.hh"
 
-SWAP::SWAP(unsigned id) {
-    sprintf(name, "SWAP.%u", id);
+Swap::Swap(unsigned id) {
+    sprintf(name, "swap.%u", id);
     fileSystem->Create(name, 0);
     swapFile = fileSystem->Open(name);
 }
 
-SWAP::~SWAP() {
+Swap::~Swap() {
     delete swapFile;
     fileSystem->Remove(name);
 }
 
 void
-SWAP::WriteSWAP(unsigned vpn, unsigned ppn) {
+Swap::WriteSwap(unsigned vpn, unsigned ppn) {
     char *mainMemory = machine->GetMMU()->mainMemory;
     unsigned offset = ppn * PAGE_SIZE;
     char *physicalAddress = mainMemory + offset;
@@ -23,7 +23,7 @@ SWAP::WriteSWAP(unsigned vpn, unsigned ppn) {
 }
 
 void
-SWAP::PullSWAP(unsigned vpn, unsigned ppn) {
+Swap::PullSwap(unsigned vpn, unsigned ppn) {
     char *mainMemory = machine->GetMMU()->mainMemory;
     unsigned offset = ppn * PAGE_SIZE;
     char *physicalAddress = mainMemory + offset;

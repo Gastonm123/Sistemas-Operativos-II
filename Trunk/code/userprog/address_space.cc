@@ -46,7 +46,7 @@ AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
     ASSERT(exe->CheckMagic());
 
     this->asid = asid;
-    swap = new SWAP(asid);
+    swap = new Swap(asid);
 
     unsigned size = exe->GetSize() + USER_STACK_SIZE;
 
@@ -264,7 +264,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         ASSERT(!pageTable[virtualPage].valid);
 
         unsigned physicalPage = FindPhysPage();
-        swap->PullSWAP(virtualPage, physicalPage);
+        swap->PullSwap(virtualPage, physicalPage);
         DEBUG('x', "SWAPPING IN  VPN=%u ASID=%u\n", virtualPage, asid);
 
         pageTable[virtualPage].physicalPage = physicalPage;
@@ -341,7 +341,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
             pageTable[virtualPage].readOnly = false;
         }
     }
-    // Pagina valida en el SWAP.
+    // Pagina valida en el swap.
 
 #endif
 
@@ -385,7 +385,7 @@ AddressSpace::SwapPage(unsigned vpn) {
 
     if (pageTable[vpn].swap) {
         unsigned ppn = pageTable[vpn].physicalPage;
-        swap->WriteSWAP(vpn, ppn);
+        swap->WriteSwap(vpn, ppn);
     }
 }
 #endif

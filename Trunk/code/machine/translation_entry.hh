@@ -54,7 +54,7 @@ public:
     /// This bit is set by the hardware every time the page is modified.
     bool dirty;
 
-    /// If this bit is set, the page has to be retrieved from the SWAP file.
+    /// If this bit is set, the page has to be retrieved from the swap file.
     bool swap; 
 
 };

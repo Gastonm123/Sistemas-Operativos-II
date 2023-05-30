@@ -21,7 +21,7 @@
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 
 class Executable;
-class SWAP;
+class Swap;
 
 class AddressSpace {
 public:
@@ -61,7 +61,7 @@ public:
     /// table. Return the index evicted TLB entry.
     unsigned EvictTlb();
 
-    /// Move page to SWAP file; returns physical page.
+    /// Move page to swap file; returns physical page.
     /// * `vpn` is the virtual page number of the victim page.
     void SwapPage(unsigned vpn);
 #endif
@@ -86,7 +86,7 @@ private:
     /// Next tlb victim.
     unsigned tlbVictim;
 
-    SWAP *swap;
+    Swap *swap;
 #endif
 
 };
