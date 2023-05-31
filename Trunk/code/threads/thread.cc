@@ -62,12 +62,10 @@ Thread::Thread(const char *threadName, bool mustJoin)
     }
 #ifdef USER_PROGRAM
     tid = threadMap->Add(this);
-    if (tid == -1) {
-        // TODO: esto deberia manejarse en otro lado.
-        // No deberia tirar el sistema.
-        printf("Error creando thread: demasiados threads.");
-        ASSERT(false);
-    }
+    bool tooManyThreads = tid == -1;
+    // TODO: esto deberia manejarse en otro lado.
+    // No deberia tirar el sistema.
+    ASSERT(!tooManyThreads);
 
     space     = nullptr;
     openFiles = new Table<OpenFile*>;
