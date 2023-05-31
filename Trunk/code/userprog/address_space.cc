@@ -239,17 +239,6 @@ AddressSpace::RestoreState()
 #endif
 }
 
-#ifdef USE_TLB
-unsigned
-FindPhysPage() {
-    unsigned page = physPages->Find();
-    if (page != -1) {
-        return page;
-    }
-    return coreMap->EvictPage();
-}
-#endif
-
 const TranslationEntry*
 AddressSpace::GetTranslationEntry(unsigned virtualPage)
 {
@@ -263,7 +252,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
     if (pageTable[virtualPage].swap) {
         ASSERT(!pageTable[virtualPage].valid);
 
-        unsigned physicalPage = FindPhysPage();
+        unsigned physicalPage = coreMap->FindPhysPage();
         swap->PullSwap(virtualPage, physicalPage);
         DEBUG('x', "SWAPPING IN  VPN=%u ASID=%u\n", virtualPage, asid);
 
@@ -277,7 +266,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         ASSERT(!pageTable[virtualPage].swap);
         pageTable[virtualPage].valid = true;
 
-        unsigned physicalPage = FindPhysPage();
+        unsigned physicalPage = coreMap->FindPhysPage();
         pageTable[virtualPage].physicalPage = physicalPage; 
         coreMap->RegisterPage(virtualPage, physicalPage);
 

@@ -16,12 +16,13 @@ class CoreMap {
 public:
     CoreMap();
     ~CoreMap();
-    unsigned EvictPage();
+    unsigned FindPhysPage();
     void RegisterPage(unsigned vpn, unsigned ppn);
     void RemoveCurrentThread();
 
 private:
     List<CoreMapEntry *> *coreMap; 
+    unsigned EvictPage();
 };
 
 #endif

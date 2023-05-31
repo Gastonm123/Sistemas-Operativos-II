@@ -43,6 +43,17 @@ CoreMap::EvictPage() {
     return ppn;
 }
 
+unsigned
+CoreMap::FindPhysPage() {
+    unsigned ppn = physPages->Find();
+    if (ppn == -1) {
+        ppn = EvictPage();
+        // TODO: hace falta?
+        physPages->Mark(ppn);
+    }
+   return ppn;
+}
+
 void
 InvalidateEntry(CoreMapEntry* entry) {
     ASSERT(entry != nullptr);
