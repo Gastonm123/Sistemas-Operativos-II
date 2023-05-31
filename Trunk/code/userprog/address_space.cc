@@ -249,88 +249,84 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
     }
 
 #ifdef USE_TLB
-    if (pageTable[virtualPage].swap) {
-        ASSERT(!pageTable[virtualPage].valid);
+     if (!pageTable[virtualPage].valid) {
+        if (pageTable[virtualPage].swap) {
+            unsigned physicalPage = coreMap->FindPhysPage();
+            swap->PullSwap(virtualPage, physicalPage);
 
-        unsigned physicalPage = coreMap->FindPhysPage();
-        swap->PullSwap(virtualPage, physicalPage);
-        DEBUG('x', "SWAPPING IN  VPN=%u ASID=%u\n", virtualPage, asid);
+            pageTable[virtualPage].physicalPage = physicalPage;
+            pageTable[virtualPage].valid = true;
 
-        pageTable[virtualPage].physicalPage = physicalPage;
-        pageTable[virtualPage].valid = true;
-        pageTable[virtualPage].swap = false;
-
-        coreMap->RegisterPage(virtualPage, physicalPage);
-    }
-    else if (!pageTable[virtualPage].valid) {
-        ASSERT(!pageTable[virtualPage].swap);
-        pageTable[virtualPage].valid = true;
-
-        unsigned physicalPage = coreMap->FindPhysPage();
-        pageTable[virtualPage].physicalPage = physicalPage; 
-        coreMap->RegisterPage(virtualPage, physicalPage);
-
-        uint32_t const virtualStart = virtualPage * PAGE_SIZE;
-        uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
-
-        uint32_t const codeSize = exe->GetCodeSize();
-        uint32_t const virtualCodeStart = exe->GetCodeAddr();
-        uint32_t const virtualCodeEnd = virtualCodeStart + codeSize;
-
-        uint32_t const initDataSize = exe->GetInitDataSize();
-        uint32_t const virtualInitDataStart = exe->GetInitDataAddr();
-        uint32_t const virtualInitDataEnd = virtualInitDataStart + initDataSize;
-
-        uint32_t const uninitDataSize = exe->GetUninitDataSize();
-        uint32_t const virtualUninitDataStart = initDataSize > 0 ? virtualInitDataEnd : virtualCodeEnd;
-        uint32_t const virtualUninitDataEnd = virtualUninitDataStart + uninitDataSize;
-
-        char *mainMemory = machine->GetMMU()->mainMemory;
-
-        ASSERT(codeSize > 0); 
-
-        // code: cargar codigo
-        if (virtualStart <= virtualCodeEnd && virtualEnd >= virtualCodeStart) {
-            uint32_t virtualCopyStart = max(virtualCodeStart, virtualStart);
-            uint32_t virtualCopyEnd = min(virtualEnd, virtualCodeEnd);
-
-            uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
-            uint32_t segmentOff = virtualCopyStart - virtualCodeStart;
-
-            uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
-
-            exe->ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-            pageTable[virtualPage].readOnly = true;
+            coreMap->RegisterPage(virtualPage, physicalPage);
         }
+        else {
+            pageTable[virtualPage].valid = true;
 
-        // data: cargar data
-        if (initDataSize > 0 && virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
-            uint32_t virtualCopyStart = max(virtualInitDataStart, virtualStart);
-            uint32_t virtualCopyEnd = min(virtualEnd, virtualInitDataEnd);
+            unsigned physicalPage = coreMap->FindPhysPage();
+            pageTable[virtualPage].physicalPage = physicalPage;
+            coreMap->RegisterPage(virtualPage, physicalPage);
 
-            uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
-            uint32_t segmentOff = virtualCopyStart - virtualInitDataStart;
+            uint32_t const virtualStart = virtualPage * PAGE_SIZE;
+            uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
 
-            uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+            uint32_t const codeSize = exe->GetCodeSize();
+            uint32_t const virtualCodeStart = exe->GetCodeAddr();
+            uint32_t const virtualCodeEnd = virtualCodeStart + codeSize;
 
-            exe->ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-            pageTable[virtualPage].readOnly = false;
-        }
+            uint32_t const initDataSize = exe->GetInitDataSize();
+            uint32_t const virtualInitDataStart = exe->GetInitDataAddr();
+            uint32_t const virtualInitDataEnd = virtualInitDataStart + initDataSize;
 
-        // bss: cargar cero
-        if (uninitDataSize > 0 && virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
-            uint32_t virtualCopyStart = max(virtualUninitDataStart, virtualStart);
-            uint32_t virtualCopyEnd = min(virtualEnd, virtualUninitDataEnd);
+            uint32_t const uninitDataSize = exe->GetUninitDataSize();
+            uint32_t const virtualUninitDataStart = initDataSize > 0 ? virtualInitDataEnd : virtualCodeEnd;
+            uint32_t const virtualUninitDataEnd = virtualUninitDataStart + uninitDataSize;
 
-            uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+            char *mainMemory = machine->GetMMU()->mainMemory;
 
-            uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+            ASSERT(codeSize > 0);
 
-            memset(&mainMemory[physicalAddr], 0, writeSize);
-            pageTable[virtualPage].readOnly = false;
+            // code: cargar codigo
+            if (virtualStart <= virtualCodeEnd && virtualEnd >= virtualCodeStart) {
+                uint32_t virtualCopyStart = max(virtualCodeStart, virtualStart);
+                uint32_t virtualCopyEnd = min(virtualEnd, virtualCodeEnd);
+
+                uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+                uint32_t segmentOff = virtualCopyStart - virtualCodeStart;
+
+                uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+                exe->ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+                pageTable[virtualPage].readOnly = true;
+            }
+
+            // data: cargar data
+            if (initDataSize > 0 && virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
+                uint32_t virtualCopyStart = max(virtualInitDataStart, virtualStart);
+                uint32_t virtualCopyEnd = min(virtualEnd, virtualInitDataEnd);
+
+                uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+                uint32_t segmentOff = virtualCopyStart - virtualInitDataStart;
+
+                uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+                exe->ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+                pageTable[virtualPage].readOnly = false;
+            }
+
+            // bss: cargar cero
+            if (uninitDataSize > 0 && virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
+                uint32_t virtualCopyStart = max(virtualUninitDataStart, virtualStart);
+                uint32_t virtualCopyEnd = min(virtualEnd, virtualUninitDataEnd);
+
+                uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+
+                uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+                memset(&mainMemory[physicalAddr], 0, writeSize);
+                pageTable[virtualPage].readOnly = false;
+            }
         }
     }
-    // Pagina valida en el swap.
 
 #endif
 
@@ -356,25 +352,24 @@ AddressSpace::EvictTlb() {
 
 void
 AddressSpace::SwapPage(unsigned vpn) {
-    DEBUG('x', "SWAPPING OUT VPN=%u ASID=%u\n", vpn, asid);
-
     ASSERT(pageTable[vpn].valid);
-    ASSERT(!pageTable[vpn].swap);
+
+    pageTable[vpn].valid = false;
+    bool dirty = pageTable[vpn].dirty;
 
     for (unsigned i = 0; i < TLB_SIZE; i++) {
         TranslationEntry *entry = &machine->GetMMU()->tlb[i];
         if (entry->valid && entry->virtualPage == vpn) {
             entry->valid = false;
-            entry->swap = !entry->readOnly;
+            dirty = entry->dirty;
         }
     }    
 
-    pageTable[vpn].valid = false;
-    pageTable[vpn].swap = !pageTable[vpn].readOnly;
-
-    if (pageTable[vpn].swap) {
+    // Solo la movemos al swap si fue modificada.
+    if (dirty) {
         unsigned ppn = pageTable[vpn].physicalPage;
         swap->WriteSwap(vpn, ppn);
+        pageTable[vpn].swap = true;
     }
 }
 #endif
