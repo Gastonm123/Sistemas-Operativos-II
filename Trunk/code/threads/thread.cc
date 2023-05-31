@@ -61,7 +61,14 @@ Thread::Thread(const char *threadName, bool mustJoin)
         joinChannel = nullptr;
     }
 #ifdef USER_PROGRAM
-    this->tid = threadMap->Add(this); //devuelve -1 si hay 20 o mas hilos.
+    tid = threadMap->Add(this);
+    if (tid == -1) {
+        // TODO: esto deberia manejarse en otro lado.
+        // No deberia tirar el sistema.
+        printf("Error creando thread: demasiados threads.");
+        ASSERT(false);
+    }
+
     space     = nullptr;
     openFiles = new Table<OpenFile*>;
     openFiles->Add(nullptr); // registra un dummy STDIN.
