@@ -19,7 +19,7 @@ CoreMap::RegisterPage(unsigned vpn, unsigned ppn) {
     CoreMapEntry *entry = new CoreMapEntry();
     entry->vpn = vpn;
     entry->ppn = ppn;
-    entry->thread = currentThread;
+    entry->tid = currentThread->GetTid();
     coreMap->Append(entry);
 
     physPages->Mark(ppn);
@@ -32,9 +32,11 @@ CoreMap::EvictPage() {
     do {
         entry = coreMap->Pop();
         ASSERT(entry != nullptr);
-    } while (entry->thread == nullptr);
+    } while (entry->tid == -1);
 
-    entry->thread->space->SwapPage(entry->vpn);
+    Thread *owner = threadMap->Get(entry->tid);
+    ASSERT(owner != nullptr);
+    owner->space->SwapPage(entry->vpn);
 
     unsigned ppn = entry->ppn;
 
@@ -54,8 +56,9 @@ CoreMap::FindPhysPage() {
 void
 InvalidateEntry(CoreMapEntry* entry) {
     ASSERT(entry != nullptr);
-    if (entry->thread == currentThread) {
-        entry->thread = nullptr;
+    unsigned currentTid = currentThread->GetTid();
+    if (entry->tid == currentTid) {
+        entry->tid = -1;
         physPages->Clear(entry->ppn);
     }
 }

@@ -9,7 +9,7 @@ class CoreMapEntry {
 public:
     unsigned vpn;
     unsigned ppn;
-    Thread* thread;
+    unsigned tid; 
 };
 
 class CoreMap {
