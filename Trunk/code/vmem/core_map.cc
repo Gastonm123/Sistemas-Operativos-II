@@ -37,7 +37,6 @@ CoreMap::EvictPage() {
     entry->thread->space->SwapPage(entry->vpn);
 
     unsigned ppn = entry->ppn;
-    physPages->Clear(ppn);
 
     delete entry;
     return ppn;
@@ -48,8 +47,6 @@ CoreMap::FindPhysPage() {
     unsigned ppn = physPages->Find();
     if (ppn == -1) {
         ppn = EvictPage();
-        // TODO: hace falta?
-        physPages->Mark(ppn);
     }
    return ppn;
 }
