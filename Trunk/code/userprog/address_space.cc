@@ -18,13 +18,24 @@
 #include "vmem/core_map.hh"
 #endif
 
+#ifdef USE_TLB
+uint32_t TranslatePage(uint32_t virtualPage, PageTableEntry const* pageTable) {
+    uint32_t physicalPage = pageTable[virtualPage].base.physicalPage;
+    return physicalPage;
+}
+#else
 uint32_t TranslatePage(uint32_t virtualPage, TranslationEntry const* pageTable) {
     uint32_t physicalPage = pageTable[virtualPage].physicalPage;
 
     return physicalPage;
 }
+#endif
 
+#ifdef USE_TLB
+uint32_t TranslateAddress(uint32_t virtualAddress, PageTableEntry const* pageTable) {
+#else
 uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry const* pageTable) {
+#endif
     uint32_t virtualPage = virtualAddress / PAGE_SIZE;
     uint32_t offset      = virtualAddress % PAGE_SIZE;
 
@@ -53,15 +64,15 @@ AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
     numPages = DivRoundUp(size, PAGE_SIZE);
     size = numPages * PAGE_SIZE;
 
-    pageTable = new TranslationEntry[numPages];
+    pageTable = new PageTableEntry[numPages];
     for (unsigned i = 0; i < numPages; ++i) {
-        pageTable[i].virtualPage  = i;
-        pageTable[i].physicalPage = 0;
-        pageTable[i].valid        = false;
-        pageTable[i].use          = false;
-        pageTable[i].dirty        = false;
-        pageTable[i].readOnly     = false;
-        pageTable[i].swap         = false; 
+        pageTable[i].base.virtualPage  = i;
+        pageTable[i].base.physicalPage = 0;
+        pageTable[i].base.valid        = false;
+        pageTable[i].base.use          = false;
+        pageTable[i].base.dirty        = false;
+        pageTable[i].base.readOnly     = false;
+        pageTable[i].swap              = false;
     }
 
     /// Initialize tlbVictim
@@ -248,19 +259,19 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
     }
 
 #ifdef USE_TLB
-    if (!pageTable[virtualPage].valid) {
+    if (!pageTable[virtualPage].base.valid) {
         if (pageTable[virtualPage].swap) {
             unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
             swap->PullSwap(virtualPage, physicalPage);
 
-            pageTable[virtualPage].physicalPage = physicalPage;
-            pageTable[virtualPage].valid = true;
+            pageTable[virtualPage].base.physicalPage = physicalPage;
+            pageTable[virtualPage].base.valid = true;
         }
         else {
             unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
-            pageTable[virtualPage].physicalPage = physicalPage;
+            pageTable[virtualPage].base.physicalPage = physicalPage;
 
-            pageTable[virtualPage].valid = true;
+            pageTable[virtualPage].base.valid = true;
 
             uint32_t const virtualStart = virtualPage * PAGE_SIZE;
             uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
@@ -292,7 +303,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
                 uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
 
                 exe->ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-                pageTable[virtualPage].readOnly = true;
+                pageTable[virtualPage].base.readOnly = true;
             }
 
             // data: cargar data
@@ -306,7 +317,7 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
                 uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
 
                 exe->ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-                pageTable[virtualPage].readOnly = false;
+                pageTable[virtualPage].base.readOnly = false;
             }
 
             // bss: cargar cero
@@ -319,14 +330,14 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
                 uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
 
                 memset(&mainMemory[physicalAddr], 0, writeSize);
-                pageTable[virtualPage].readOnly = false;
+                pageTable[virtualPage].base.readOnly = false;
             }
         }
     }
-
-#endif
-
+    return &pageTable[virtualPage].base;
+#else
     return &pageTable[virtualPage];
+#endif
 }
 
 #ifdef USE_TLB
@@ -336,7 +347,7 @@ AddressSpace::EvictTlb() {
 
     TranslationEntry *victim = &machine->GetMMU()->tlb[tlbVictim];
     if (victim->valid) {
-        pageTable[victim->virtualPage] = *victim;
+        pageTable[victim->virtualPage].base = *victim;
         victim->valid = false;
     }
 
@@ -349,10 +360,10 @@ AddressSpace::EvictTlb() {
 void
 AddressSpace::SwapPage(unsigned vpn) {
     ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].valid);
+    ASSERT(pageTable[vpn].base.valid);
 
-    pageTable[vpn].valid = false;
-    bool dirty = pageTable[vpn].dirty;
+    pageTable[vpn].base.valid = false;
+    bool dirty = pageTable[vpn].base.dirty;
 
     /// Si estamos corriendo ahora, tenemos que mirar la TLB.
     /// Nos fijamos si la pagina fue modificada y marcamos la entrada como invalida.
@@ -368,10 +379,10 @@ AddressSpace::SwapPage(unsigned vpn) {
 
     // Solo la movemos al swap si fue modificada.
     if (dirty) {
-        unsigned ppn = pageTable[vpn].physicalPage;
+        unsigned ppn = pageTable[vpn].base.physicalPage;
         swap->WriteSwap(vpn, ppn);
         pageTable[vpn].swap = true;
-        pageTable[vpn].dirty = false;
+        pageTable[vpn].base.dirty = false;
     }
 }
 
@@ -380,7 +391,7 @@ AddressSpace::UpdatePageTable() {
     for (unsigned i = 0; i < TLB_SIZE; i++) {
         TranslationEntry *entry = &machine->GetMMU()->tlb[i];
         if (entry->valid) {
-            pageTable[entry->virtualPage] = *entry;
+            pageTable[entry->virtualPage].base = *entry;
         }
     }
 }
@@ -388,25 +399,25 @@ AddressSpace::UpdatePageTable() {
 bool
 AddressSpace::UseBit(unsigned vpn) {
     ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].valid);
+    ASSERT(pageTable[vpn].base.valid);
 
-    return pageTable[vpn].use;
+    return pageTable[vpn].base.use;
 }
 
 bool
 AddressSpace::DirtyBit(unsigned vpn) {
     ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].valid);
+    ASSERT(pageTable[vpn].base.valid);
 
-    return pageTable[vpn].dirty;
+    return pageTable[vpn].base.dirty;
 }
 
 void
 AddressSpace::ClearUseBit(unsigned vpn) {
     ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].valid);
+    ASSERT(pageTable[vpn].base.valid);
 
-    pageTable[vpn].use = false;
+    pageTable[vpn].base.use = false;
 }
 #endif
 

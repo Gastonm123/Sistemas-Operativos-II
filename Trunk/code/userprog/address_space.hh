@@ -23,6 +23,14 @@ const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 class Executable;
 class Swap;
 
+#ifdef USE_TLB
+class PageTableEntry {
+public:
+    TranslationEntry base;
+    bool swap;
+};
+#endif
+
 class AddressSpace {
 public:
 
@@ -87,8 +95,11 @@ public:
 
 private:
 
-    /// Assume linear page table translation for now!
+#ifdef USE_TLB
+    PageTableEntry *pageTable;
+#else
     TranslationEntry *pageTable;
+#endif
 
     /// Number of pages in the virtual address space.
     unsigned numPages;
