@@ -30,6 +30,7 @@
 
 #include "mmu.hh"
 #include "endianness.hh"
+#include "threads/system.hh"
 
 #include <stdio.h>
 
@@ -200,9 +201,16 @@ MMU::RetrievePageEntry(unsigned vpn, TranslationEntry **entry) const
             TranslationEntry *e = &tlb[i];
             if (e->valid && e->virtualPage == vpn) {
                 *entry = e;  // FOUND!
+#ifdef USE_TLB
+                stats->tlbHits++;
+#endif
                 return NO_EXCEPTION;
             }
         }
+
+#ifdef USE_TLB
+        stats->tlbMisses++;
+#endif
 
         // Not found.
         DEBUG_CONT('a', "no valid TLB entry found for this virtual page!\n");
