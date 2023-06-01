@@ -56,7 +56,6 @@ public:
 
     /// If this bit is set, the page has to be retrieved from the swap file.
     bool swap; 
-
 };
 
 

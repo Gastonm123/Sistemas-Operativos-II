@@ -97,7 +97,6 @@ AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
         pageTable[i].use          = false;
         pageTable[i].dirty        = false;
         pageTable[i].readOnly     = false;
-        pageTable[i].swap         = false;
           // If the code segment was entirely on a separate page, we could
           // set its pages to be read-only.
     }
@@ -352,24 +351,30 @@ AddressSpace::EvictTlb() {
 
 void
 AddressSpace::SwapPage(unsigned vpn) {
+    ASSERT(vpn < numPages);
     ASSERT(pageTable[vpn].valid);
 
     pageTable[vpn].valid = false;
     bool dirty = pageTable[vpn].dirty;
 
-    for (unsigned i = 0; i < TLB_SIZE; i++) {
-        TranslationEntry *entry = &machine->GetMMU()->tlb[i];
-        if (entry->valid && entry->virtualPage == vpn) {
-            entry->valid = false;
-            dirty = entry->dirty;
+    /// Si estamos corriendo ahora, tenemos que mirar la TLB.
+    /// Nos fijamos si la pagina fue modificada y marcamos la entrada como invalida.
+    if (asid == currentThread->GetTid()) {
+        for (unsigned i = 0; i < TLB_SIZE; i++) {
+            TranslationEntry *entry = &machine->GetMMU()->tlb[i];
+            if (entry->valid && entry->virtualPage == vpn) {
+                entry->valid = false;
+                dirty = entry->dirty;
+            }
         }
-    }    
+    }
 
     // Solo la movemos al swap si fue modificada.
     if (dirty) {
         unsigned ppn = pageTable[vpn].physicalPage;
         swap->WriteSwap(vpn, ppn);
         pageTable[vpn].swap = true;
+        pageTable[vpn].dirty = false;
     }
 }
 #endif
