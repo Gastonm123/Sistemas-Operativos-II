@@ -173,7 +173,7 @@ AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
 AddressSpace::~AddressSpace()
 {
     // Las paginas fisicas se liberan en Thread::Exit
-    // usando CoreMap::RemoveCurrentThread
+    // usando CoreMap::FreeAll
 
     delete [] pageTable;
 #ifdef USE_TLB
@@ -248,22 +248,19 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
     }
 
 #ifdef USE_TLB
-     if (!pageTable[virtualPage].valid) {
+    if (!pageTable[virtualPage].valid) {
         if (pageTable[virtualPage].swap) {
-            unsigned physicalPage = coreMap->FindPhysPage();
+            unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
             swap->PullSwap(virtualPage, physicalPage);
 
             pageTable[virtualPage].physicalPage = physicalPage;
             pageTable[virtualPage].valid = true;
-
-            coreMap->RegisterPage(virtualPage, physicalPage);
         }
         else {
-            pageTable[virtualPage].valid = true;
-
-            unsigned physicalPage = coreMap->FindPhysPage();
+            unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
             pageTable[virtualPage].physicalPage = physicalPage;
-            coreMap->RegisterPage(virtualPage, physicalPage);
+
+            pageTable[virtualPage].valid = true;
 
             uint32_t const virtualStart = virtualPage * PAGE_SIZE;
             uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
@@ -376,6 +373,40 @@ AddressSpace::SwapPage(unsigned vpn) {
         pageTable[vpn].swap = true;
         pageTable[vpn].dirty = false;
     }
+}
+
+void
+AddressSpace::UpdatePageTable() {
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        TranslationEntry *entry = &machine->GetMMU()->tlb[i];
+        if (entry->valid) {
+            pageTable[entry->virtualPage] = *entry;
+        }
+    }
+}
+
+bool
+AddressSpace::UseBit(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].valid);
+
+    return pageTable[vpn].use;
+}
+
+bool
+AddressSpace::DirtyBit(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].valid);
+
+    return pageTable[vpn].dirty;
+}
+
+void
+AddressSpace::ClearUseBit(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].valid);
+
+    pageTable[vpn].use = false;
 }
 #endif
 

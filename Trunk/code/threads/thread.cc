@@ -400,10 +400,9 @@ Thread::Exit(int exitStatus)
         interrupt->Halt();
     }
 #ifdef USE_TLB 
-    /// Marcamos el thread como inactivo en el core map.
-    /// Ahora podemos quitarle paginas fisicas sin enviarlas al swap.
+    /// Liberamos las paginas fisicas reservadas por el proceso.
     /// TODO: esto tambien deberia estar en otro lado?
-    coreMap->RemoveCurrentThread(); 
+    coreMap->FreeAll(tid);
 #endif
 
     threadToBeDestroyed = currentThread;

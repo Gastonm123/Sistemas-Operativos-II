@@ -3,68 +3,91 @@
 
 #ifdef USE_TLB
 CoreMap::CoreMap() {
-    coreMap = new List<CoreMapEntry *>();
+    coreMap = new CoreMapEntry[NUM_PHYS_PAGES];
+    victim = 0;
 }
 
 CoreMap::~CoreMap() {
-    while (!coreMap->IsEmpty()) {
-        CoreMapEntry* entry = coreMap->Pop();
-        delete entry;
-    }
     delete coreMap;
 }
 
-void
-CoreMap::RegisterPage(unsigned vpn, unsigned ppn) {
-    CoreMapEntry *entry = new CoreMapEntry();
-    entry->vpn = vpn;
-    entry->ppn = ppn;
-    entry->tid = currentThread->GetTid();
-    coreMap->Append(entry);
 
-    physPages->Mark(ppn);
+unsigned
+CoreMap::MapPhysPage(unsigned vpn) {
+    unsigned ppn = physPages->Find();
+    if (ppn == -1) {
+        ppn = FreePage();
+    }
+
+    coreMap[ppn].vpn = vpn;
+    coreMap[ppn].tid = currentThread->GetTid();
+
+    return ppn;
+}
+
+void
+CoreMap::FreeAll(unsigned tid) {
+    for (unsigned ppn = 0; ppn < NUM_PHYS_PAGES; ppn++) {
+        if (coreMap[ppn].tid == tid) {
+            physPages->Clear(ppn);
+        }
+    }
 }
 
 unsigned
-CoreMap::EvictPage() {
-    ASSERT(!coreMap->IsEmpty());
-    CoreMapEntry *entry;
-    do {
-        entry = coreMap->Pop();
-        ASSERT(entry != nullptr);
-    } while (entry->tid == -1);
+CoreMap::FreePage() {
+    currentThread->space->UpdatePageTable();
 
-    Thread *owner = threadMap->Get(entry->tid);
+    unsigned ppn;
+    ppn = FindMatch(false);
+    if (ppn != -1) {
+        goto EVICT_PAGE;
+    }
+    ppn = FindMatch(true);
+    if (ppn != -1) {
+        goto EVICT_PAGE;
+    }
+    ppn = FindMatch(false);
+    if (ppn != -1) {
+        goto EVICT_PAGE;
+    }
+    ppn = victim;
+    victim = (victim + 1) % NUM_PHYS_PAGES;
+
+EVICT_PAGE:
+    Thread *owner = threadMap->Get(coreMap[ppn].tid);
     ASSERT(owner != nullptr);
-    owner->space->SwapPage(entry->vpn);
 
-    unsigned ppn = entry->ppn;
+    owner->space->SwapPage(coreMap[ppn].vpn);
 
-    delete entry;
     return ppn;
 }
 
 unsigned
-CoreMap::FindPhysPage() {
-    unsigned ppn = physPages->Find();
-    if (ppn == -1) {
-        ppn = EvictPage();
-    }
-   return ppn;
-}
+CoreMap::FindMatch(bool dirty) {
+    for (unsigned i = 0; i < NUM_PHYS_PAGES; i++) {
+        unsigned ppn = victim;
+        victim = (victim + 1) % NUM_PHYS_PAGES;
 
-void
-InvalidateEntry(CoreMapEntry* entry) {
-    ASSERT(entry != nullptr);
-    unsigned currentTid = currentThread->GetTid();
-    if (entry->tid == currentTid) {
-        entry->tid = -1;
-        physPages->Clear(entry->ppn);
-    }
-}
+        CoreMapEntry *entry = &coreMap[ppn];
 
-void
-CoreMap::RemoveCurrentThread() {
-    coreMap->Apply(InvalidateEntry);
+        unsigned vpn = entry->vpn;
+        unsigned tid = entry->tid;
+
+        Thread *owner = threadMap->Get(tid);
+        ASSERT(owner != nullptr);
+
+        bool useBit = owner->space->UseBit(vpn);
+        bool dirtyBit = owner->space->DirtyBit(vpn);
+        if (dirty) {
+            // Si no encontramos una pagina limpia, las paginas usadas tienen
+            // otra oportunidad.
+            owner->space->ClearUseBit(vpn);
+        }
+        if (!useBit && dirty == dirtyBit) {
+            return ppn;
+        }
+    }
+    return -1;
 }
 #endif

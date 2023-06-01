@@ -64,6 +64,22 @@ public:
     /// Move page to swap file; returns physical page.
     /// * `vpn` is the virtual page number of the victim page.
     void SwapPage(unsigned vpn);
+
+    /// Look into TLB and update page table.
+    void UpdatePageTable();
+
+    /// Get `use` bit of given virtual page.
+    /// * `vpn` is the virtual page number.
+    bool UseBit(unsigned vpn);
+
+    /// Get `dirty` bit of given virtual page.
+    /// * `vpn` is the virtual page number.
+    bool DirtyBit(unsigned vpn);
+
+    /// Clear `use` bit of given virtual page.
+    /// Used in page replacement.
+    /// `vpn` is the virtual page number.
+    void ClearUseBit(unsigned vpn);
 #endif
 
     /// Returns address space id.

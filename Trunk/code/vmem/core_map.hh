@@ -8,7 +8,6 @@ class Thread;
 class CoreMapEntry {
 public:
     unsigned vpn;
-    unsigned ppn;
     unsigned tid; 
 };
 
@@ -16,13 +15,14 @@ class CoreMap {
 public:
     CoreMap();
     ~CoreMap();
-    unsigned FindPhysPage();
-    void RegisterPage(unsigned vpn, unsigned ppn);
-    void RemoveCurrentThread();
+    unsigned MapPhysPage(unsigned vpn);
+    void FreeAll(unsigned tid);
 
 private:
-    List<CoreMapEntry *> *coreMap; 
-    unsigned EvictPage();
+    CoreMapEntry *coreMap;
+    unsigned victim;
+    unsigned FreePage();
+    unsigned FindMatch(bool dirty);
 };
 
 #endif
