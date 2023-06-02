@@ -58,7 +58,8 @@ PostOffice *postOffice;
 #endif
 
 #ifdef USE_TLB
-CoreMap *coreMap;  ///< Mapa de la memoria.
+CoreMapEntry *coreMap;  ///< Mapa de la memoria.
+unsigned swapVictim;   ///< Next potential swap victim.
 #endif
 
 // External definition, to allow us to take a pointer to this function.
@@ -267,7 +268,8 @@ Initialize(int argc, char **argv)
 #endif
 
 #ifdef USE_TLB
-    coreMap = new CoreMap();
+    coreMap = new CoreMapEntry[NUM_PHYS_PAGES];
+    swapVictim = 0;
 #endif
 }
 
@@ -297,6 +299,10 @@ Cleanup()
 
 #ifdef FILESYS
     delete synchDisk;
+#endif
+
+#ifdef USE_TLB
+    delete[] coreMap;
 #endif
 
     delete timer;

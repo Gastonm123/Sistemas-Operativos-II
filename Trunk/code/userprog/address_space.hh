@@ -16,12 +16,14 @@
 
 #include "filesys/file_system.hh"
 #include "machine/translation_entry.hh"
+#ifdef USE_TLB
+#include "vmem/core_map.hh"
+#endif
 
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 
 class Executable;
-class Swap;
 
 #ifdef USE_TLB
 class PageTableEntry {
@@ -68,30 +70,7 @@ public:
     /// Evict an entry from the machine TLB and save its metadata into the page
     /// table. Return the index evicted TLB entry.
     unsigned EvictTlb();
-
-    /// Move page to swap file; returns physical page.
-    /// * `vpn` is the virtual page number of the victim page.
-    void SwapPage(unsigned vpn);
-
-    /// Look into TLB and update page table.
-    void UpdatePageTable();
-
-    /// Get `use` bit of given virtual page.
-    /// * `vpn` is the virtual page number.
-    bool UseBit(unsigned vpn);
-
-    /// Get `dirty` bit of given virtual page.
-    /// * `vpn` is the virtual page number.
-    bool DirtyBit(unsigned vpn);
-
-    /// Clear `use` bit of given virtual page.
-    /// Used in page replacement.
-    /// `vpn` is the virtual page number.
-    void ClearUseBit(unsigned vpn);
 #endif
-
-    /// Returns address space id.
-    unsigned GetASid();
 
 private:
 
@@ -104,8 +83,6 @@ private:
     /// Number of pages in the virtual address space.
     unsigned numPages;
 
-    /// Address space id (actualmente igual al tid).
-    unsigned asid;
 #ifdef USE_TLB
     /// Executable of the program file.
     Executable *exe;
@@ -113,7 +90,9 @@ private:
     /// Next tlb victim.
     unsigned tlbVictim;
 
-    Swap *swap;
+    /// CoreMap::MoveFrameToSwap requires access to the pageTable of any
+    /// address space.
+    friend unsigned CoreMap::MoveFrameToSwap();
 #endif
 
 };

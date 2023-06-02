@@ -5,24 +5,33 @@
 
 class Thread;
 
+/// Main memory information about paging.
+///
+/// Each main memory frame pertain to an unique process and have an unique page
+/// number within that process.
 class CoreMapEntry {
 public:
-    unsigned vpn;
+    /// Process to which this frame pertains.
     unsigned tid; 
+
+    /// Page number within `tid` address space.
+    unsigned vpn;
 };
 
-class CoreMap {
-public:
-    CoreMap();
-    ~CoreMap();
-    unsigned MapPhysPage(unsigned vpn);
-    void FreeAll(unsigned tid);
+/// Virtual memory functionality.
+///
+/// A clock algorithm is used to select the next frame to be evicted from main
+/// memory and moved into swap area.
+namespace CoreMap {
+    /// Selects and moves a frame from main memory to swap.
+    ///
+    /// Returns the frame number.
+    unsigned MoveFrameToSwap();
 
-private:
-    CoreMapEntry *coreMap;
-    unsigned victim;
-    unsigned FreePage();
-    unsigned FindMatch(bool dirty);
+    /// Finds an empty frame. If there is none, moves a frame to swap.
+    ///
+    /// Returns an empty-frame number.
+    unsigned Find();
 };
 
 #endif

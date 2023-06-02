@@ -56,9 +56,6 @@ AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
     exe  = new Executable(executableFile);
     ASSERT(exe->CheckMagic());
 
-    this->asid = asid;
-    swap = new Swap(asid);
-
     unsigned size = exe->GetSize() + USER_STACK_SIZE;
 
     numPages = DivRoundUp(size, PAGE_SIZE);
@@ -183,13 +180,9 @@ AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
-    // Las paginas fisicas se liberan en Thread::Exit
-    // usando CoreMap::FreeAll
-
     delete [] pageTable;
 #ifdef USE_TLB
     delete exe;
-    delete swap;
 #endif
 }
 
@@ -260,15 +253,19 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
 
 #ifdef USE_TLB
     if (!pageTable[virtualPage].base.valid) {
+        unsigned physicalPage = CoreMap::Find();
+
+        coreMap[physicalPage].tid = currentThread->GetTid();
+        coreMap[physicalPage].vpn = virtualPage;
+
         if (pageTable[virtualPage].swap) {
-            unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
-            swap->PullSwap(virtualPage, physicalPage);
+            currentThread->GetSwap()->PullSwap(virtualPage, physicalPage);
 
             pageTable[virtualPage].base.physicalPage = physicalPage;
             pageTable[virtualPage].base.valid = true;
+            pageTable[virtualPage].swap = false;
         }
         else {
-            unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
             pageTable[virtualPage].base.physicalPage = physicalPage;
 
             pageTable[virtualPage].base.valid = true;
@@ -356,72 +353,4 @@ AddressSpace::EvictTlb() {
     tlbVictim = (tlbVictim + 1) % TLB_SIZE;
     return _tlbVictim;
 }
-
-void
-AddressSpace::SwapPage(unsigned vpn) {
-    ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].base.valid);
-
-    pageTable[vpn].base.valid = false;
-    bool dirty = pageTable[vpn].base.dirty;
-
-    /// Si estamos corriendo ahora, tenemos que mirar la TLB.
-    /// Nos fijamos si la pagina fue modificada y marcamos la entrada como invalida.
-    if (asid == currentThread->GetTid()) {
-        for (unsigned i = 0; i < TLB_SIZE; i++) {
-            TranslationEntry *entry = &machine->GetMMU()->tlb[i];
-            if (entry->valid && entry->virtualPage == vpn) {
-                entry->valid = false;
-                dirty = entry->dirty;
-            }
-        }
-    }
-
-    // Solo la movemos al swap si fue modificada.
-    if (dirty) {
-        unsigned ppn = pageTable[vpn].base.physicalPage;
-        swap->WriteSwap(vpn, ppn);
-        pageTable[vpn].swap = true;
-        pageTable[vpn].base.dirty = false;
-    }
-}
-
-void
-AddressSpace::UpdatePageTable() {
-    for (unsigned i = 0; i < TLB_SIZE; i++) {
-        TranslationEntry *entry = &machine->GetMMU()->tlb[i];
-        if (entry->valid) {
-            pageTable[entry->virtualPage].base = *entry;
-        }
-    }
-}
-
-bool
-AddressSpace::UseBit(unsigned vpn) {
-    ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].base.valid);
-
-    return pageTable[vpn].base.use;
-}
-
-bool
-AddressSpace::DirtyBit(unsigned vpn) {
-    ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].base.valid);
-
-    return pageTable[vpn].base.dirty;
-}
-
-void
-AddressSpace::ClearUseBit(unsigned vpn) {
-    ASSERT(vpn < numPages);
-    ASSERT(pageTable[vpn].base.valid);
-
-    pageTable[vpn].base.use = false;
-}
 #endif
-
-unsigned
-AddressSpace::GetASid() {
-    return asid;
-}

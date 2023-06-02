@@ -47,6 +47,9 @@
 #include "filesys/open_file.hh"
 #include "lib/table.hh"
 #endif
+#ifdef USE_TLB
+#include "vmem/swap.hh"
+#endif
 
 #include <stdint.h>
 
@@ -76,6 +79,7 @@ enum ThreadStatus {
 };
 
 class JoinInfo;
+class Swap;
 
 /// The following class defines a “thread control block” -- which represents
 /// a single thread of execution.
@@ -175,6 +179,11 @@ private:
     /// Thread identifier.
     unsigned tid;
 
+#ifdef USE_TLB
+    /// Swap file.
+    Swap *swap;
+#endif
+
 #ifdef USER_PROGRAM
     /// User-level CPU register state.
     ///
@@ -205,6 +214,9 @@ public:
     // Table of open files
     Table<OpenFile*> *openFiles;
 
+#endif
+#ifdef USE_TLB
+    Swap *GetSwap() const;
 #endif
 };
 

@@ -64,7 +64,8 @@ extern PostOffice *postOffice;
 
 #ifdef USE_TLB
 #include "vmem/core_map.hh"
-extern CoreMap *coreMap;
+extern CoreMapEntry *coreMap;
+extern unsigned swapVictim;
 #endif
 
 
