@@ -24,7 +24,11 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
+#ifdef USE_TLB
+#include "vmem/core_map.hh"
+#endif
 
 /// This is put at the top of the execution stack, for detecting stack
 /// overflows.
@@ -57,7 +61,12 @@ Thread::Thread(const char *threadName, bool mustJoin)
         joinChannel = nullptr;
     }
 #ifdef USER_PROGRAM
-    this->tid = threadMap->Add(this); //devuelve -1 si hay 20 o mas hilos.
+    tid = threadMap->Add(this);
+    bool tooManyThreads = tid == -1;
+    // TODO: esto deberia manejarse en otro lado.
+    // No deberia tirar el sistema.
+    ASSERT(!tooManyThreads);
+
     space     = nullptr;
     openFiles = new Table<OpenFile*>;
     openFiles->Add(nullptr); // registra un dummy STDIN.
@@ -93,7 +102,7 @@ Thread::~Thread()
     delete space;
     delete joinChannel;
     // Cerrar archivos abiertos.
-    for (int fd = 0; fd < openFiles->SIZE; fd++) {
+    for (unsigned fd = 0; fd < openFiles->SIZE; fd++) {
         OpenFile *file = openFiles->Get(fd);
         if (file) {
             delete file;
@@ -384,6 +393,17 @@ Thread::Exit(int exitStatus)
     ASSERT(space != nullptr);
 
     DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
+
+    /// The main thread is responsible for halting the machine once the user
+    /// space exits.
+    if (!strcmp(name, "main")) {
+        interrupt->Halt();
+    }
+#ifdef USE_TLB 
+    /// Liberamos las paginas fisicas reservadas por el proceso.
+    /// TODO: esto tambien deberia estar en otro lado?
+    coreMap->FreeAll(tid);
+#endif
 
     threadToBeDestroyed = currentThread;
     Sleep();  // Invokes `SWITCH`.

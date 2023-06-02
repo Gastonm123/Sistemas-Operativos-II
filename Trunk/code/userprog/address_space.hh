@@ -20,6 +20,16 @@
 
 const unsigned USER_STACK_SIZE = 1024;  ///< Increase this as necessary!
 
+class Executable;
+class Swap;
+
+#ifdef USE_TLB
+class PageTableEntry {
+public:
+    TranslationEntry base;
+    bool swap;
+};
+#endif
 
 class AddressSpace {
 public:
@@ -32,9 +42,10 @@ public:
     /// executed.
     ///
     /// Parameters:
-    /// * `executable_file` is the open file that corresponds to the
+    /// * `executableFile` is the open file that corresponds to the
     ///   program; it contains the object code to load into memory.
-    AddressSpace(OpenFile *executable_file);
+    /// * `asid` es el address space id.
+    AddressSpace(OpenFile *executableFile, unsigned asid);
 
     /// De-allocate an address space.
     ~AddressSpace();
@@ -47,13 +58,63 @@ public:
     void SaveState();
     void RestoreState();
 
+    /// Returns a pointer to the translation entry associated with the
+    /// given page, or nullptr if it is outside of the virtual address space.
+    ///
+    /// * `virtualPage` is the requested page.
+    const TranslationEntry* GetTranslationEntry(unsigned virtualPage);
+
+#ifdef USE_TLB
+    /// Evict an entry from the machine TLB and save its metadata into the page
+    /// table. Return the index evicted TLB entry.
+    unsigned EvictTlb();
+
+    /// Move page to swap file; returns physical page.
+    /// * `vpn` is the virtual page number of the victim page.
+    void SwapPage(unsigned vpn);
+
+    /// Look into TLB and update page table.
+    void UpdatePageTable();
+
+    /// Get `use` bit of given virtual page.
+    /// * `vpn` is the virtual page number.
+    bool UseBit(unsigned vpn);
+
+    /// Get `dirty` bit of given virtual page.
+    /// * `vpn` is the virtual page number.
+    bool DirtyBit(unsigned vpn);
+
+    /// Clear `use` bit of given virtual page.
+    /// Used in page replacement.
+    /// `vpn` is the virtual page number.
+    void ClearUseBit(unsigned vpn);
+#endif
+
+    /// Returns address space id.
+    unsigned GetASid();
+
 private:
 
-    /// Assume linear page table translation for now!
+#ifdef USE_TLB
+    PageTableEntry *pageTable;
+#else
     TranslationEntry *pageTable;
+#endif
 
     /// Number of pages in the virtual address space.
     unsigned numPages;
+
+    /// Address space id (actualmente igual al tid).
+    unsigned asid;
+#ifdef USE_TLB
+    /// Executable of the program file.
+    Executable *exe;
+
+    /// Next tlb victim.
+    unsigned tlbVictim;
+
+    Swap *swap;
+#endif
 
 };
 

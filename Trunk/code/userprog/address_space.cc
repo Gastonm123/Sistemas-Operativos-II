@@ -13,15 +13,75 @@
 
 #include <string.h>
 
+#ifdef USE_TLB
+#include "vmem/swap.hh"
+#include "vmem/core_map.hh"
+#endif
+
+#ifdef USE_TLB
+uint32_t TranslatePage(uint32_t virtualPage, PageTableEntry const* pageTable) {
+    uint32_t physicalPage = pageTable[virtualPage].base.physicalPage;
+    return physicalPage;
+}
+#else
+uint32_t TranslatePage(uint32_t virtualPage, TranslationEntry const* pageTable) {
+    uint32_t physicalPage = pageTable[virtualPage].physicalPage;
+
+    return physicalPage;
+}
+#endif
+
+#ifdef USE_TLB
+uint32_t TranslateAddress(uint32_t virtualAddress, PageTableEntry const* pageTable) {
+#else
+uint32_t TranslateAddress(uint32_t virtualAddress, TranslationEntry const* pageTable) {
+#endif
+    uint32_t virtualPage = virtualAddress / PAGE_SIZE;
+    uint32_t offset      = virtualAddress % PAGE_SIZE;
+
+    uint32_t physicalPage = TranslatePage(virtualPage, pageTable);
+    uint32_t physicalAddr = physicalPage * PAGE_SIZE + offset;
+
+    return physicalAddr;
+}
 
 /// First, set up the translation from program memory to physical memory.
 /// For now, this is really simple (1:1), since we are only uniprogramming,
 /// and we have a single unsegmented page table.
-AddressSpace::AddressSpace(OpenFile *executable_file)
+AddressSpace::AddressSpace(OpenFile *executableFile, unsigned asid)
 {
-    ASSERT(executable_file != nullptr);
+#ifdef USE_TLB
+    ASSERT(executableFile != nullptr);
 
-    Executable exe (executable_file);
+    exe  = new Executable(executableFile);
+    ASSERT(exe->CheckMagic());
+
+    this->asid = asid;
+    swap = new Swap(asid);
+
+    unsigned size = exe->GetSize() + USER_STACK_SIZE;
+
+    numPages = DivRoundUp(size, PAGE_SIZE);
+    size = numPages * PAGE_SIZE;
+
+    pageTable = new PageTableEntry[numPages];
+    for (unsigned i = 0; i < numPages; ++i) {
+        pageTable[i].base.virtualPage  = i;
+        pageTable[i].base.physicalPage = 0;
+        pageTable[i].base.valid        = false;
+        pageTable[i].base.use          = false;
+        pageTable[i].base.dirty        = false;
+        pageTable[i].base.readOnly     = false;
+        pageTable[i].swap              = false;
+    }
+
+    /// Initialize tlbVictim
+    tlbVictim = 0;
+
+#else
+    ASSERT(executableFile != nullptr);
+
+    Executable exe (executableFile);
     ASSERT(exe.CheckMagic());
 
     // How big is address space?
@@ -55,79 +115,67 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
     char *mainMemory = machine->GetMMU()->mainMemory;
 
     // Then, copy in the code and data segments into memory.
-    uint32_t codeSize = exe.GetCodeSize();
+    uint32_t const codeSize = exe.GetCodeSize();
     uint32_t initDataSize = exe.GetInitDataSize();
     uint32_t uninitDataSize = exe.GetUninitDataSize();
 
-    uint32_t virtualAddr, virtualPage, offset, segmentOff, physicalPage,
-             physicalAddr, writeSize;
-
-    // Assert que el segmento TEXT esta al inicio del programa.
-    ASSERT(exe.GetCodeAddr() == 0);
-
-    virtualAddr = exe.GetCodeAddr();
-    virtualPage = virtualAddr / PAGE_SIZE;
-    offset      = virtualAddr % PAGE_SIZE;
-    segmentOff  = 0;
-    for (; codeSize > 0; virtualPage++) {
-        physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = physicalPage * PAGE_SIZE + offset;
-
-        //DEBUG('a', "Initializing code segment, at 0x%X, size %u\n",
-        //      virtualAddr, codeSize);
-
-        writeSize = min(PAGE_SIZE - offset, codeSize);
-        exe.ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-
-        segmentOff += writeSize;
-        codeSize   -= writeSize;
-        offset      = 0;
-    }
-
-    // Assert de que son contiguos los segmentos TEXT y DATA.
-    ASSERT(initDataSize == 0 || exe.GetInitDataAddr() == virtualAddr +
-           exe.GetCodeSize());
-
-    virtualAddr = exe.GetInitDataAddr();
-    virtualPage = virtualAddr / PAGE_SIZE;
-    offset      = virtualAddr % PAGE_SIZE;
-    segmentOff  = 0;
-    for (; initDataSize > 0; virtualPage++) {
-        physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = physicalPage * PAGE_SIZE + offset;
-
-        //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
-
-        writeSize = min(PAGE_SIZE - offset, initDataSize);
-        exe.ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
-
-        segmentOff   += writeSize;
-        initDataSize -= writeSize;
-        offset        = 0;
-    }
-
+    uint32_t const codeStart = exe.GetCodeAddr();
+    uint32_t const initDataStart = exe.GetInitDataAddr();
     // Asumimos que mips buscara el segmento BSS a continuacion de DATA (si
     // existe).
-    if (exe.GetInitDataSize() > 0) {
-        virtualAddr = exe.GetInitDataAddr() + exe.GetInitDataSize();
-    }
-    else {
-        virtualAddr = exe.GetCodeAddr() + exe.GetCodeSize();
-    }
-    virtualPage = virtualAddr / PAGE_SIZE;
-    offset      = virtualAddr % PAGE_SIZE;
-    for (; uninitDataSize > 0; virtualPage++) {
-        physicalPage = pageTable[virtualPage].physicalPage;
-        physicalAddr = physicalPage * PAGE_SIZE + offset;
+    uint32_t const uninitDataStart = initDataSize > 0 ? initDataStart + initDataSize : codeStart + codeStart;
 
-        //DEBUG('a', "Initializing data segment, at 0x%X, size %u\n",
+    // Assert que el segmento TEXT esta al inicio del programa.
+    ASSERT(codeStart == 0);
 
-        writeSize = min(PAGE_SIZE - offset, uninitDataSize);
+    // Assert de que son contiguos los segmentos TEXT y DATA.
+    ASSERT(initDataSize == 0 || initDataStart == codeStart + codeSize);
+
+    uint32_t virtualAddr, segmentOff, writeSize, remaining;
+
+    remaining = codeSize;
+    virtualAddr = codeStart;
+    segmentOff  = 0;
+    while (remaining > 0) {
+        uint32_t physicalAddr = TranslateAddress(virtualAddr, pageTable);
+        uint32_t offset = virtualAddr % PAGE_SIZE;
+
+        writeSize = min(PAGE_SIZE - offset, remaining);
+        exe.ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+
+        virtualAddr += writeSize;
+        segmentOff  += writeSize;
+        remaining   -= writeSize;
+    }
+
+    remaining = initDataSize;
+    virtualAddr = initDataStart;
+    segmentOff  = 0;
+    while (remaining > 0) {
+        uint32_t physicalAddr = TranslateAddress(virtualAddr, pageTable);
+        uint32_t offset = physicalAddr % PAGE_SIZE;
+
+        writeSize = min(PAGE_SIZE - offset, remaining);
+        exe.ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+
+        virtualAddr += writeSize;
+        segmentOff  += writeSize;
+        remaining   -= writeSize;
+    }
+
+    virtualAddr = uninitDataStart;
+    remaining = uninitDataSize;
+    while (remaining > 0) {
+        uint32_t physicalAddr = TranslateAddress(virtualAddr, pageTable);
+        uint32_t offset = virtualAddr % PAGE_SIZE;
+
+        writeSize = min(PAGE_SIZE - offset, remaining);
         memset(&mainMemory[physicalAddr], 0, writeSize);
 
-        uninitDataSize -= writeSize;
-        offset          = 0;
+        virtualAddr += writeSize;
+        remaining   -= writeSize;
     }
+#endif
 }
 
 /// Deallocate an address space.
@@ -135,10 +183,14 @@ AddressSpace::AddressSpace(OpenFile *executable_file)
 /// Nothing for now!
 AddressSpace::~AddressSpace()
 {
-    for (unsigned i = 0; i < numPages; i++) {
-        physPages->Clear(pageTable[i].physicalPage);
-    }
+    // Las paginas fisicas se liberan en Thread::Exit
+    // usando CoreMap::FreeAll
+
     delete [] pageTable;
+#ifdef USE_TLB
+    delete exe;
+    delete swap;
+#endif
 }
 
 /// Set the initial values for the user-level register set.
@@ -170,20 +222,206 @@ AddressSpace::InitRegisters()
 }
 
 /// On a context switch, save any machine state, specific to this address
-/// space, that needs saving.
-///
-/// For now, nothing!
+/// space, that needs saving. When using TLB, all its records are evicted.
 void
 AddressSpace::SaveState()
-{}
+{
+#ifdef USE_TLB
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        EvictTlb();
+    } 
+#endif
+}
 
 /// On a context switch, restore the machine state so that this address space
-/// can run.
-///
-/// For now, tell the machine where to find the page table.
+/// can run. When using TLB, invalidate all previous records.
 void
 AddressSpace::RestoreState()
 {
-    machine->GetMMU()->pageTable     = pageTable;
+#ifdef USE_TLB
+    TranslationEntry *tlb = machine->GetMMU()->tlb;
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        tlb[i].valid = false;
+    }
+#else
+    machine->GetMMU()->pageTable = pageTable;
     machine->GetMMU()->pageTableSize = numPages;
+#endif
+}
+
+const TranslationEntry*
+AddressSpace::GetTranslationEntry(unsigned virtualPage)
+{
+    ASSERT(currentThread->space == this);
+
+    if (virtualPage >= numPages) {
+        return nullptr;
+    }
+
+#ifdef USE_TLB
+    if (!pageTable[virtualPage].base.valid) {
+        if (pageTable[virtualPage].swap) {
+            unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
+            swap->PullSwap(virtualPage, physicalPage);
+
+            pageTable[virtualPage].base.physicalPage = physicalPage;
+            pageTable[virtualPage].base.valid = true;
+        }
+        else {
+            unsigned physicalPage = coreMap->MapPhysPage(virtualPage);
+            pageTable[virtualPage].base.physicalPage = physicalPage;
+
+            pageTable[virtualPage].base.valid = true;
+
+            uint32_t const virtualStart = virtualPage * PAGE_SIZE;
+            uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
+
+            uint32_t const codeSize = exe->GetCodeSize();
+            uint32_t const virtualCodeStart = exe->GetCodeAddr();
+            uint32_t const virtualCodeEnd = virtualCodeStart + codeSize;
+
+            uint32_t const initDataSize = exe->GetInitDataSize();
+            uint32_t const virtualInitDataStart = exe->GetInitDataAddr();
+            uint32_t const virtualInitDataEnd = virtualInitDataStart + initDataSize;
+
+            uint32_t const uninitDataSize = exe->GetUninitDataSize();
+            uint32_t const virtualUninitDataStart = initDataSize > 0 ? virtualInitDataEnd : virtualCodeEnd;
+            uint32_t const virtualUninitDataEnd = virtualUninitDataStart + uninitDataSize;
+
+            char *mainMemory = machine->GetMMU()->mainMemory;
+
+            ASSERT(codeSize > 0);
+
+            // code: cargar codigo
+            if (virtualStart <= virtualCodeEnd && virtualEnd >= virtualCodeStart) {
+                uint32_t virtualCopyStart = max(virtualCodeStart, virtualStart);
+                uint32_t virtualCopyEnd = min(virtualEnd, virtualCodeEnd);
+
+                uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+                uint32_t segmentOff = virtualCopyStart - virtualCodeStart;
+
+                uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+                exe->ReadCodeBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+                pageTable[virtualPage].base.readOnly = true;
+            }
+
+            // data: cargar data
+            if (initDataSize > 0 && virtualStart <= virtualInitDataEnd && virtualEnd >= virtualInitDataStart) {
+                uint32_t virtualCopyStart = max(virtualInitDataStart, virtualStart);
+                uint32_t virtualCopyEnd = min(virtualEnd, virtualInitDataEnd);
+
+                uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+                uint32_t segmentOff = virtualCopyStart - virtualInitDataStart;
+
+                uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+                exe->ReadDataBlock(&mainMemory[physicalAddr], writeSize, segmentOff);
+                pageTable[virtualPage].base.readOnly = false;
+            }
+
+            // bss: cargar cero
+            if (uninitDataSize > 0 && virtualStart <= virtualUninitDataEnd && virtualEnd >= virtualUninitDataStart) {
+                uint32_t virtualCopyStart = max(virtualUninitDataStart, virtualStart);
+                uint32_t virtualCopyEnd = min(virtualEnd, virtualUninitDataEnd);
+
+                uint32_t writeSize = virtualCopyEnd - virtualCopyStart;
+
+                uint32_t physicalAddr = TranslateAddress(virtualCopyStart, pageTable);
+
+                memset(&mainMemory[physicalAddr], 0, writeSize);
+                pageTable[virtualPage].base.readOnly = false;
+            }
+        }
+    }
+    return &pageTable[virtualPage].base;
+#else
+    return &pageTable[virtualPage];
+#endif
+}
+
+#ifdef USE_TLB
+unsigned
+AddressSpace::EvictTlb() {
+    ASSERT(currentThread->space == this);
+
+    TranslationEntry *victim = &machine->GetMMU()->tlb[tlbVictim];
+    if (victim->valid) {
+        pageTable[victim->virtualPage].base = *victim;
+        victim->valid = false;
+    }
+
+    /// Increment tlbVictim.
+    unsigned _tlbVictim = tlbVictim;
+    tlbVictim = (tlbVictim + 1) % TLB_SIZE;
+    return _tlbVictim;
+}
+
+void
+AddressSpace::SwapPage(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].base.valid);
+
+    pageTable[vpn].base.valid = false;
+    bool dirty = pageTable[vpn].base.dirty;
+
+    /// Si estamos corriendo ahora, tenemos que mirar la TLB.
+    /// Nos fijamos si la pagina fue modificada y marcamos la entrada como invalida.
+    if (asid == currentThread->GetTid()) {
+        for (unsigned i = 0; i < TLB_SIZE; i++) {
+            TranslationEntry *entry = &machine->GetMMU()->tlb[i];
+            if (entry->valid && entry->virtualPage == vpn) {
+                entry->valid = false;
+                dirty = entry->dirty;
+            }
+        }
+    }
+
+    // Solo la movemos al swap si fue modificada.
+    if (dirty) {
+        unsigned ppn = pageTable[vpn].base.physicalPage;
+        swap->WriteSwap(vpn, ppn);
+        pageTable[vpn].swap = true;
+        pageTable[vpn].base.dirty = false;
+    }
+}
+
+void
+AddressSpace::UpdatePageTable() {
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        TranslationEntry *entry = &machine->GetMMU()->tlb[i];
+        if (entry->valid) {
+            pageTable[entry->virtualPage].base = *entry;
+        }
+    }
+}
+
+bool
+AddressSpace::UseBit(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].base.valid);
+
+    return pageTable[vpn].base.use;
+}
+
+bool
+AddressSpace::DirtyBit(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].base.valid);
+
+    return pageTable[vpn].base.dirty;
+}
+
+void
+AddressSpace::ClearUseBit(unsigned vpn) {
+    ASSERT(vpn < numPages);
+    ASSERT(pageTable[vpn].base.valid);
+
+    pageTable[vpn].base.use = false;
+}
+#endif
+
+unsigned
+AddressSpace::GetASid() {
+    return asid;
 }

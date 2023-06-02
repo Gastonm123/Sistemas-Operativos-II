@@ -57,6 +57,10 @@ SynchConsole *ui;
 PostOffice *postOffice;
 #endif
 
+#ifdef USE_TLB
+CoreMap *coreMap;  ///< Mapa de la memoria.
+#endif
+
 // External definition, to allow us to take a pointer to this function.
 extern void Cleanup();
 
@@ -260,6 +264,10 @@ Initialize(int argc, char **argv)
 
 #ifdef NETWORK
     postOffice = new PostOffice(netname, rely, 10);
+#endif
+
+#ifdef USE_TLB
+    coreMap = new CoreMap();
 #endif
 }
 

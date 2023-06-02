@@ -34,7 +34,6 @@ extern Interrupt *interrupt;         ///< Interrupt status.
 extern Statistics *stats;            ///< Performance metrics.
 extern Timer *timer;                 ///< The hardware alarm clock.
 
-
 #ifdef USER_PROGRAM
 #include "machine/machine.hh"
 extern Machine *machine;  // User program memory and registers.
@@ -61,6 +60,11 @@ extern SynchDisk *synchDisk;
 #ifdef NETWORK
 #include "network/post.hh"
 extern PostOffice *postOffice;
+#endif
+
+#ifdef USE_TLB
+#include "vmem/core_map.hh"
+extern CoreMap *coreMap;
 #endif
 
 

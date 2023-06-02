@@ -31,10 +31,16 @@ StartProcess(const char *filename)
         return;
     }
 
-    AddressSpace *space = new AddressSpace(executable);
+    unsigned tid = currentThread->GetTid();
+    AddressSpace *space = new AddressSpace(executable, tid);
     currentThread->space = space;
 
+#ifdef USE_TLB
+    /// Demand loading requires that the executable file is open all the time.
+    currentThread->openFiles->Add(executable);
+#else
     delete executable;
+#endif
 
     space->InitRegisters();  // Set the initial register values.
     space->RestoreState();   // Load page table register.

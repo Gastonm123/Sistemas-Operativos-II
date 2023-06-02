@@ -18,11 +18,17 @@ void ReadBufferFromUser(int userAddress, char *outBuffer,
     unsigned count = 0;
     do {
         int temp;
-        count++;
-        ASSERT(machine->ReadMem(userAddress++, 1, &temp));
-        *outBuffer = (unsigned char) temp;
-        outBuffer++;
-    } while (count < byteCount);
+#ifndef USE_TLB
+        ASSERT(machine->ReadMem(userAddress, 1, &temp));
+#else
+        if (!machine->ReadMem(userAddress, 1, &temp)) {
+            /// Reintentar si hubo un fallo.
+            ASSERT(machine->ReadMem(userAddress, 1, &temp));
+        }
+#endif
+        *outBuffer++ = (unsigned char) temp;
+        userAddress++;
+    } while (++count < byteCount);
 
 }
 
@@ -36,9 +42,17 @@ bool ReadStringFromUser(int userAddress, char *outString,
     unsigned count = 0;
     do {
         int temp;
-        count++;
-        ASSERT(machine->ReadMem(userAddress++, 1, &temp));
+#ifndef USE_TLB
+        ASSERT(machine->ReadMem(userAddress, 1, &temp));
+#else
+        if (!machine->ReadMem(userAddress, 1, &temp)) {
+            /// Reintentar si hubo un fallo.
+            ASSERT(machine->ReadMem(userAddress, 1, &temp));
+        }
+#endif
         *outString = (unsigned char) temp;
+        userAddress++;
+        count++;
     } while (*outString++ != '\0' && count < maxByteCount);
 
     return *(outString - 1) == '\0';
@@ -53,9 +67,17 @@ void WriteBufferToUser(const char *buffer, int userAddress,
 
     unsigned count = 0;
     do {
-        count++;
-        ASSERT(machine->WriteMem(userAddress++, 1, (int) *(buffer++)));
-    } while (count < byteCount);
+#ifndef USE_TLB
+        ASSERT(machine->WriteMem(userAddress, 1, (int) *buffer));
+#else
+        if (!machine->WriteMem(userAddress, 1, (int) *buffer)) {
+            /// Reintentar si hubo un fallo.
+            ASSERT(machine->WriteMem(userAddress, 1, (int) *buffer));
+        }
+#endif
+        userAddress++;
+        buffer++;
+    } while (++count < byteCount);
 }
 
 void WriteStringToUser(const char *string, int userAddress)
@@ -64,6 +86,14 @@ void WriteStringToUser(const char *string, int userAddress)
     ASSERT(string != nullptr);
 
     do {
-        ASSERT(machine->WriteMem(userAddress++, 1, (int) *string));
-    } while (*(string++) != '\0');
+#ifndef USE_TLB
+        ASSERT(machine->WriteMem(userAddress, 1, (int) *string));
+#else
+        if (!machine->WriteMem(userAddress, 1, (int) *string)) {
+            /// Reintentar si hubo un fallo.
+            ASSERT(machine->WriteMem(userAddress, 1, (int) *string));
+        }
+#endif
+        userAddress++;
+    } while (*string++ != '\0');
 }

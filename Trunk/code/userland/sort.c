@@ -7,6 +7,7 @@
 
 
 #include "syscall.h"
+#include "lib.h"
 
 
 #define DIM  1024
@@ -26,12 +27,25 @@ main(void)
 
     // Then sort!
     for (i = 0; i < DIM - 1; i++) {
-        for (j = i; j < DIM - 1 - i; j++) {
+        for (j = 0; j < DIM - 1 - i; j++) {
             if (A[j] > A[j + 1]) {  // Out of order -> need to swap!
                 tmp = A[j];
                 A[j] = A[j + 1];
                 A[j + 1] = tmp;
             }
+        }
+    }
+
+    puts("A: ");
+    for (i = 0; i < DIM; i++) {
+        char num[12];
+        itoa(A[i], num);
+        puts(num);
+        if (i < DIM-1) {
+            puts(", ");
+        }
+        else {
+            puts(".\n");
         }
     }
 

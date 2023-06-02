@@ -16,7 +16,7 @@
 DEFINES      = -DUSER_PROGRAM  -DFILESYS_NEEDED -DFILESYS_STUB -DVMEM \
                -DUSE_TLB -DDFS_TICKS_FIX
 INCLUDE_DIRS = -I.. -I../filesys -I../bin -I../userprog -I../threads \
-               -I../machine
+               -I../machine -I../vmem
 HDR_FILES    = $(THREAD_HDR) $(USERPROG_HDR) $(VMEM_HDR)
 SRC_FILES    = $(THREAD_SRC) $(USERPROG_SRC) $(VMEM_SRC)
 OBJ_FILES    = $(THREAD_OBJ) $(USERPROG_OBJ) $(VMEM_OBJ)

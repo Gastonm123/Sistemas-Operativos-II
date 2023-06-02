@@ -24,7 +24,9 @@ Statistics::Statistics()
 #ifdef DFS_TICKS_FIX
     tickResets = 0;
 #endif
-
+#ifdef USE_TLB
+    tlbHits = tlbMisses = 0;
+#endif
 }
 
 /// Print performance metrics, when we have finished everything at system

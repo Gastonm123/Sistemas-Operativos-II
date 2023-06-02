@@ -94,7 +94,6 @@ USERPROG_HDR = userprog/address_space.hh            \
                userprog/transfer.hh                 \
                filesys/file_system.hh               \
                filesys/open_file.hh                 \
-               lib/bitmap.hh                        \
 							 lib/table.hh                         \
 							 threads/thread_map.hh                \
                machine/console.hh                   \
@@ -114,7 +113,6 @@ USERPROG_SRC = userprog/address_space.cc            \
                userprog/exception.cc                \
                userprog/prog_test.cc                \
                userprog/transfer.cc                 \
-               lib/bitmap.cc                        \
                machine/console.cc                   \
                machine/encoding.cc                  \
                machine/endianness.cc                \
@@ -125,8 +123,10 @@ USERPROG_SRC = userprog/address_space.cc            \
                machine/mmu.cc                       \
 	       userprog/synch_console.cc
 
-VMEM_HDR =
-VMEM_SRC =
+VMEM_HDR = vmem/core_map.hh \
+           vmem/swap.hh
+VMEM_SRC = vmem/core_map.cc \
+           vmem/swap.cc
 
 FILESYS_HDR = filesys/directory.hh       \
               filesys/directory_entry.hh \
