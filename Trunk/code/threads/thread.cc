@@ -72,6 +72,9 @@ Thread::Thread(const char *threadName, bool mustJoin)
     openFiles->Add(nullptr); // registra un dummy STDIN.
     openFiles->Add(nullptr); // registra un dummy STDOUT.
 #endif
+#ifdef USE_TLB
+    swap = new Swap(tid);
+#endif
 }
 
 unsigned
@@ -79,6 +82,14 @@ Thread::GetTid() const
 {
     return tid;
 }
+
+#ifdef USE_TLB
+Swap*
+Thread::GetSwap() const
+{
+    return swap;
+}
+#endif
 
 /// De-allocate a thread.
 ///
@@ -109,6 +120,9 @@ Thread::~Thread()
         }
     }
     delete openFiles;
+#endif
+#ifdef USE_TLB
+    delete swap;
 #endif
 }
 
@@ -402,7 +416,11 @@ Thread::Exit(int exitStatus)
 #ifdef USE_TLB 
     /// Liberamos las paginas fisicas reservadas por el proceso.
     /// TODO: esto tambien deberia estar en otro lado?
-    coreMap->FreeAll(tid);
+    for (unsigned ppn = 0; ppn < NUM_PHYS_PAGES; ppn++) {
+        if (coreMap[ppn].tid == tid) {
+            physPages->Clear(ppn);
+        }
+    }
 #endif
 
     threadToBeDestroyed = currentThread;

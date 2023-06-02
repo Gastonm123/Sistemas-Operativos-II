@@ -1,93 +1,91 @@
 #include "core_map.hh"
 #include "threads/system.hh"
 
-#ifdef USE_TLB
-CoreMap::CoreMap() {
-    coreMap = new CoreMapEntry[NUM_PHYS_PAGES];
-    victim = 0;
-}
-
-CoreMap::~CoreMap() {
-    delete coreMap;
-}
-
-
+/// Selects and moves a frame from main memory to swap.
+///
+/// Returns the frame number.
 unsigned
-CoreMap::MapPhysPage(unsigned vpn) {
-    unsigned ppn = physPages->Find();
-    if (ppn == -1) {
-        ppn = FreePage();
-    }
-
-    coreMap[ppn].vpn = vpn;
-    coreMap[ppn].tid = currentThread->GetTid();
-
-    return ppn;
-}
-
-void
-CoreMap::FreeAll(unsigned tid) {
-    for (unsigned ppn = 0; ppn < NUM_PHYS_PAGES; ppn++) {
-        if (coreMap[ppn].tid == tid) {
-            physPages->Clear(ppn);
+CoreMap::MoveFrameToSwap() {
+    /// Store recently used pages.
+    AddressSpace *space = currentThread->space;
+    TranslationEntry *tlb = machine->GetMMU()->tlb;
+    for (unsigned i = 0; i < TLB_SIZE; i++) {
+        if (tlb[i].valid) {
+            space->pageTable[tlb[i].virtualPage].base = tlb[i];
         }
     }
-}
 
-unsigned
-CoreMap::FreePage() {
-    currentThread->space->UpdatePageTable();
+    /// Clock algorithm requires at most four loops.
+    for (unsigned loop = 0; loop < 4; loop++) {
+        for (unsigned i = 0; i < NUM_PHYS_PAGES; i++) {
+            CoreMapEntry *victimInfo = &coreMap[swapVictim];
 
-    unsigned ppn;
-    ppn = FindMatch(false);
-    if (ppn != -1) {
-        goto EVICT_PAGE;
-    }
-    ppn = FindMatch(true);
-    if (ppn != -1) {
-        goto EVICT_PAGE;
-    }
-    ppn = FindMatch(false);
-    if (ppn != -1) {
-        goto EVICT_PAGE;
-    }
-    ppn = victim;
-    victim = (victim + 1) % NUM_PHYS_PAGES;
+            Thread *victimThread = threadMap->Get(victimInfo->tid);
 
-EVICT_PAGE:
-    Thread *owner = threadMap->Get(coreMap[ppn].tid);
-    ASSERT(owner != nullptr);
+            PageTableEntry *victimEntry =
+                &victimThread->space->pageTable[victimInfo->vpn];
 
-    owner->space->SwapPage(coreMap[ppn].vpn);
+            bool suitable = false;
+            switch (loop) {
+                case 0:
+                    suitable = (!victimEntry->base.use &&
+                                !victimEntry->base.dirty);
+                break;
+                case 1:
+                    /// On the second loop if a frame is unused it will be
+                    /// dirty.
+                    suitable = (!victimEntry->base.use);
+                    victimEntry->base.use = 0;
+                break;
+                case 2:
+                    suitable = (!victimEntry->base.dirty);
+                break;
+                default:
+                    suitable = true;
+                break;
+            }
 
-    return ppn;
-}
+            if (suitable) {
+                /// Invalidar la pagina si se encuentra en la TLB.
+                if (victimThread == currentThread) {
+                    for (unsigned j = 0; j < TLB_SIZE; j++) {
+                        if (tlb[j].valid && tlb[j].virtualPage == victimInfo->vpn) {
+                            tlb[j].valid = false;
+                            break;
+                        }
+                    }
+                }
 
-unsigned
-CoreMap::FindMatch(bool dirty) {
-    for (unsigned i = 0; i < NUM_PHYS_PAGES; i++) {
-        unsigned ppn = victim;
-        victim = (victim + 1) % NUM_PHYS_PAGES;
+                victimEntry->base.valid = false;
 
-        CoreMapEntry *entry = &coreMap[ppn];
+                if (victimEntry->base.dirty) {
+                    victimThread->GetSwap()->WriteSwap(victimInfo->vpn,
+                                                       swapVictim);
+                    victimEntry->swap = true;
+                }
 
-        unsigned vpn = entry->vpn;
-        unsigned tid = entry->tid;
+                unsigned _swapVictim = swapVictim;
+                swapVictim = (swapVictim + 1) % NUM_PHYS_PAGES;
+                return _swapVictim;
+            }
 
-        Thread *owner = threadMap->Get(tid);
-        ASSERT(owner != nullptr);
-
-        bool useBit = owner->space->UseBit(vpn);
-        bool dirtyBit = owner->space->DirtyBit(vpn);
-        if (dirty) {
-            // Si no encontramos una pagina limpia, las paginas usadas tienen
-            // otra oportunidad.
-            owner->space->ClearUseBit(vpn);
+            swapVictim = (swapVictim + 1) % NUM_PHYS_PAGES;
         }
-        if (!useBit && dirty == dirtyBit) {
-            return ppn;
-        }
     }
-    return -1;
+
+    ASSERT(false); /// Not reached.
+    return 0;
 }
-#endif
+
+/// Finds an empty frame. If there is none, moves a frame to swap.
+///
+/// Returns an empty-frame number.
+unsigned
+CoreMap::Find()
+{
+    unsigned physicalPage = physPages->Find();
+    if (physicalPage == -1) {
+        physicalPage = CoreMap::MoveFrameToSwap();
+    }
+    return physicalPage;
+}
