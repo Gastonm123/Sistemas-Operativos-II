@@ -258,18 +258,15 @@ AddressSpace::GetTranslationEntry(unsigned virtualPage)
         coreMap[physicalPage].tid = currentThread->GetTid();
         coreMap[physicalPage].vpn = virtualPage;
 
+        pageTable[virtualPage].base.physicalPage = physicalPage;
+        pageTable[virtualPage].base.valid = true;
+
         if (pageTable[virtualPage].swap) {
             currentThread->GetSwap()->PullSwap(virtualPage, physicalPage);
-
-            pageTable[virtualPage].base.physicalPage = physicalPage;
-            pageTable[virtualPage].base.valid = true;
-            pageTable[virtualPage].swap = false;
+            /// Dejamos la bandera swap encendida pues la copia mas reciente de
+            /// la pagina sigue en el disco.
         }
         else {
-            pageTable[virtualPage].base.physicalPage = physicalPage;
-
-            pageTable[virtualPage].base.valid = true;
-
             uint32_t const virtualStart = virtualPage * PAGE_SIZE;
             uint32_t const virtualEnd = (virtualPage + 1) * PAGE_SIZE;
 

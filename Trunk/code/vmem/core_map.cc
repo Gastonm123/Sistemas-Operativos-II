@@ -1,3 +1,5 @@
+/// Virtual memory functionality.
+
 #include "core_map.hh"
 #include "threads/system.hh"
 
@@ -61,6 +63,9 @@ CoreMap::MoveFrameToSwap() {
                 if (victimEntry->base.dirty) {
                     victimThread->GetSwap()->WriteSwap(victimInfo->vpn,
                                                        swapVictim);
+                    /// El disco guarda una copia de la ultima version de esta
+                    /// pagina, asi que borramos el bit dirty.
+                    victimEntry->base.dirty = false;
                     victimEntry->swap = true;
                 }
 
