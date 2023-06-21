@@ -42,6 +42,9 @@ IsThreadStatus(ThreadStatus s)
     return 0 <= s && s < NUM_THREAD_STATUS;
 }
 
+/// Variable que usamos para decidir cuando haltear.
+unsigned numThreads = 0;
+
 /// Initialize a thread control block, so that we can then call
 /// `Thread::Fork`.
 ///
@@ -72,6 +75,7 @@ Thread::Thread(const char *threadName, bool mustJoin)
     openFiles->Add(nullptr); // registra un dummy STDIN.
     openFiles->Add(nullptr); // registra un dummy STDOUT.
 #endif
+    numThreads++;
 }
 
 unsigned
@@ -208,6 +212,12 @@ Thread::Finish()
     ASSERT(this == currentThread);
 
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
+
+    /// La consola de Nachos va a crear un loop perpetuo si no halteamos la
+    /// maquina.
+    if (--numThreads == 0) {
+        interrupt->Halt();  
+    }
 
     threadToBeDestroyed = currentThread;
     Sleep();  // Invokes `SWITCH`.
@@ -394,11 +404,12 @@ Thread::Exit(int exitStatus)
 
     DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
 
-    /// The main thread is responsible for halting the machine once the user
-    /// space exits.
-    if (!strcmp(name, "main")) {
-        interrupt->Halt();
+    /// La consola de Nachos va a crear un loop perpetuo si no halteamos la
+    /// maquina.
+    if (--numThreads == 0) {
+        interrupt->Halt();  
     }
+
 #ifdef USE_TLB 
     /// Liberamos las paginas fisicas reservadas por el proceso.
     /// TODO: esto tambien deberia estar en otro lado?

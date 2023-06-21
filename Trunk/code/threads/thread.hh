@@ -77,6 +77,9 @@ enum ThreadStatus {
 
 class JoinInfo;
 
+/// Variable que usamos para decidir cuando haltear.
+extern unsigned numThreads;
+
 /// The following class defines a “thread control block” -- which represents
 /// a single thread of execution.
 ///
