@@ -42,6 +42,7 @@ FileSystem *fileSystem;
 
 #ifdef FILESYS
 SynchDisk *synchDisk;
+FileTable *fileTable;
 #endif
 
 #ifdef USER_PROGRAM  // Requires either *FILESYS* or *FILESYS_STUB*.
@@ -60,6 +61,7 @@ PostOffice *postOffice;
 #ifdef USE_TLB
 CoreMap *coreMap;  ///< Mapa de la memoria.
 #endif
+
 
 // External definition, to allow us to take a pointer to this function.
 extern void Cleanup();
@@ -256,6 +258,7 @@ Initialize(int argc, char **argv)
 
 #ifdef FILESYS
     synchDisk = new SynchDisk("DISK");
+    fileTable = new FileTable;
 #endif
 
 #ifdef FILESYS_NEEDED
@@ -297,6 +300,7 @@ Cleanup()
 
 #ifdef FILESYS
     delete synchDisk;
+    delete fileTable;
 #endif
 
     delete timer;

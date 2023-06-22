@@ -86,6 +86,7 @@ private:
 
 #else // FILESYS
 class FileHeader;
+class SharedFile;
 
 class OpenFile {
 public:
@@ -114,8 +115,8 @@ public:
     // the UNIX idiom -- `lseek` to end of file, `tell`, `lseek` back).
     unsigned Length() const;
 
-  private:
-    FileHeader *hdr;  ///< Header for this file.
+private:
+    SharedFile *sharedFile; ///< Object shared by all users of the same file.
     unsigned seekPosition;  ///< Current position within the file.
 };
 

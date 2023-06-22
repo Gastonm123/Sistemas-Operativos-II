@@ -94,6 +94,7 @@ void PerformanceTest(void);
 void StartProcess(const char *file);
 void ConsoleTest(const char *in, const char *out);
 void MailTest(int networkID);
+void ConcurrentFileSysTest();
 
 static inline void
 PrintVersion()
@@ -181,6 +182,8 @@ main(int argc, char **argv)
             printf("Filesystem check %s.\n", result ? "succeeded" : "failed");
         } else if (!strcmp(*argv, "-tf")) {  // Performance test.
             PerformanceTest();
+        } else if (!strcmp(*argv, "-ct")) {  // Concurrent test.
+            ConcurrentFileSysTest();
         }
 #endif
 #ifdef NETWORK

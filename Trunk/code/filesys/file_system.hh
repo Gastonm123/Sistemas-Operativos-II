@@ -126,6 +126,9 @@ public:
     /// Delete a file (UNIX `unlink`).
     bool Remove(const char *name);
 
+    /// Liberate a file's blocks after it is no longer used.
+    void Liberate(unsigned sector);
+
     /// List all the files in the file system.
     void List();
 

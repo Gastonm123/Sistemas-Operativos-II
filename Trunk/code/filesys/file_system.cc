@@ -47,6 +47,9 @@
 #include "file_header.hh"
 #include "lib/bitmap.hh"
 
+#include "file_table.hh"
+extern FileTable *fileTable;
+
 #include <stdio.h>
 #include <string.h>
 
@@ -254,6 +257,15 @@ FileSystem::Remove(const char *name)
        delete dir;
        return false;  // file not found
     }
+
+    /// If the file is being used the remove will be later.
+    if (fileTable->MarkForRemove(sector)) {
+        dir->Remove(name);
+        dir->WriteBack(directoryFile);    // Flush to disk.
+        delete dir;
+        return true;
+    }
+
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
 
@@ -270,6 +282,23 @@ FileSystem::Remove(const char *name)
     delete dir;
     delete freeMap;
     return true;
+}
+
+/// Liberate a file's blocks after it is no longer used.
+void FileSystem::Liberate(unsigned sector)
+{
+    FileHeader *fileH = new FileHeader;
+    fileH->FetchFrom(sector);
+
+    Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    freeMap->FetchFrom(freeMapFile);
+
+    fileH->Deallocate(freeMap);  // Remove data blocks.
+    freeMap->Clear(sector);      // Remove header block.
+
+    freeMap->WriteBack(freeMapFile);
+    delete freeMap;
+    delete fileH;
 }
 
 /// List all the files in the file system directory.

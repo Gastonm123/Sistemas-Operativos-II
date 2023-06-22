@@ -78,6 +78,9 @@ public:
     /// Remove first item from list.
     Item SortedPop(int *keyPtr);
 
+    /// Get an item by its sortKey. This is needed for the system's file table.
+    Item Get(int key);
+
 private:
 
     typedef ListElement<Item> ListNode;
@@ -319,5 +322,24 @@ List<Item>::SortedPop(int *keyPtr)
     return thing;
 }
 
+/// Get an item by its sortKey. This is needed for the system's file table.
+/// * `key` is the sortKey used to insert the item.
+template <class Item>
+Item
+List<Item>::Get(int key)
+{
+    if (!IsEmpty()) {
+        for (ListNode *ptr = first; ptr != nullptr; ptr = ptr->next) {
+            if (key < ptr->key) { // Not in the list
+                break;
+            }
+            if (key == ptr->key) {
+                return ptr->item;
+            }
+        }
+    }
+
+    return Item();
+}
 
 #endif

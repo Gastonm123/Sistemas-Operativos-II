@@ -24,15 +24,14 @@
 /// * `sector` is the location on disk of the file header for this file.
 OpenFile::OpenFile(int sector)
 {
-    hdr = new FileHeader;
-    hdr->FetchFrom(sector);
+    sharedFile   = fileTable->Open(sector);
     seekPosition = 0;
 }
 
 /// Close a Nachos file, de-allocating any in-memory data structures.
 OpenFile::~OpenFile()
 {
-    delete hdr;
+    fileTable->Close(sharedFile);
 }
 
 /// Change the current location within the open file -- the point at which
@@ -110,6 +109,7 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
     ASSERT(into != nullptr);
     ASSERT(numBytes > 0);
 
+    FileHeader *hdr = sharedFile->fileHeader;
     unsigned fileLength = hdr->FileLength();
     unsigned firstSector, lastSector, numSectors;
     char *buf;
@@ -127,12 +127,14 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
     lastSector = DivRoundDown(position + numBytes - 1, SECTOR_SIZE);
     numSectors = 1 + lastSector - firstSector;
 
+    sharedFile->fileLock->Acquire();
     // Read in all the full and partial sectors that we need.
     buf = new char [numSectors * SECTOR_SIZE];
     for (unsigned i = firstSector; i <= lastSector; i++) {
         synchDisk->ReadSector(hdr->ByteToSector(i * SECTOR_SIZE),
                               &buf[(i - firstSector) * SECTOR_SIZE]);
     }
+    sharedFile->fileLock->Release();
 
     // Copy the part we want.
     memcpy(into, &buf[position - firstSector * SECTOR_SIZE], numBytes);
@@ -146,6 +148,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     ASSERT(from != nullptr);
     ASSERT(numBytes > 0);
 
+    FileHeader *hdr = sharedFile->fileHeader;
     unsigned fileLength = hdr->FileLength();
     unsigned firstSector, lastSector, numSectors;
     bool firstAligned, lastAligned;
@@ -181,11 +184,13 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     // Copy in the bytes we want to change.
     memcpy(&buf[position - firstSector * SECTOR_SIZE], from, numBytes);
 
+    sharedFile->fileLock->Acquire();
     // Write modified sectors back.
     for (unsigned i = firstSector; i <= lastSector; i++) {
         synchDisk->WriteSector(hdr->ByteToSector(i * SECTOR_SIZE),
                                &buf[(i - firstSector) * SECTOR_SIZE]);
     }
+    sharedFile->fileLock->Release();
     delete [] buf;
     return numBytes;
 }
@@ -194,5 +199,5 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
 unsigned
 OpenFile::Length() const
 {
-    return hdr->FileLength();
+    return sharedFile->fileHeader->FileLength();
 }
