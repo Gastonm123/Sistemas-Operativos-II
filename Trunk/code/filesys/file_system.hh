@@ -105,6 +105,8 @@ static const unsigned DIRECTORY_FILE_SIZE
   = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
 
 
+class Lock;
+
 class FileSystem {
 public:
 
@@ -143,6 +145,7 @@ private:
                             ///< file.
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
+    Lock *fsLock;
 };
 
 #endif
