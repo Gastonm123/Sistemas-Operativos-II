@@ -280,6 +280,8 @@ Cleanup()
 {
     DEBUG('i', "Cleaning up...\n");
 
+    synchDisk->FlushCache();
+
     // 2007, Jose Miguel Santos Espino
     delete preemptiveScheduler;
 

@@ -53,6 +53,8 @@
 /// * `-D`  -- prints the contents of the entire file system.
 /// * `-c`  -- checks the filesystem integrity.
 /// * `-tf` -- tests the performance of the Nachos file system.
+/// * `-ct` -- (* custom *) tests the concurrency capabilities of the file
+///            system.
 ///
 /// *NETWORK* options
 /// -----------------

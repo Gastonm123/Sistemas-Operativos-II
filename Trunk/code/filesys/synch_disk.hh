@@ -25,8 +25,11 @@ public:
     ///< Flag signaling this sector is to be written at some later time.
     bool dirty;
 
-    ///< Flag signaling this entry is valid.
+    ///< Flag signaling this entry has recently been used.
     bool use;
+
+    ///< Flag signaling this entry is valid.
+    bool valid;
 
     ///< Sector data.
     char data[SECTOR_SIZE];
@@ -62,6 +65,11 @@ public:
     /// current disk operation is complete.
     void RequestDone();
 
+    /// Flush all cached writes.
+    void FlushCache();
+
+    void PrintCache();
+
 private:
     Disk *disk;  ///< Raw disk device.
     Semaphore *semaphore;  ///< To synchronize requesting thread with the
@@ -72,10 +80,11 @@ private:
     unsigned victim; ///< Reclaim victim.
 
     /// Find an entry that is suitable to be overwritten by some other data.
-    /// If the entry is dirty, write it to disk before returning.
     unsigned ReclaimCache();
 
     List<DiskCache*> *writeQ; ///< Writes must be processed in order.
+    unsigned numCachedWrites;  ///< Number of cached writes.
+    Lock *cacheLock;
 };
 
 
