@@ -153,6 +153,6 @@ FileHeader::GetRaw() const
 }
 
 bool
-FileHeader::IsDirectory() {
+FileHeader::IsDirectory() const{
     return raw.directory;
 }

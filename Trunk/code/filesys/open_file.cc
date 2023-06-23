@@ -26,7 +26,7 @@ OpenFile::OpenFile(int sector)
 {
     sharedFile   = fileTable->Open(sector);
     seekPosition = 0;
-    isDirectory = sharedFile->fileHeader->directory;
+    isDirectory = sharedFile->fileHeader->IsDirectory();
 }
 
 /// Close a Nachos file, de-allocating any in-memory data structures.
