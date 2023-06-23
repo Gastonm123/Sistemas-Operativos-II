@@ -26,6 +26,7 @@ OpenFile::OpenFile(int sector)
 {
     sharedFile   = fileTable->Open(sector);
     seekPosition = 0;
+    isDirectory = sharedFile->fileHeader->directory;
 }
 
 /// Close a Nachos file, de-allocating any in-memory data structures.
@@ -200,4 +201,24 @@ unsigned
 OpenFile::Length() const
 {
     return sharedFile->fileHeader->FileLength();
+}
+
+void
+OpenFile::LockFile() {
+    sharedFile->fileLock->Acquire();
+}
+
+void
+OpenFile::UnlockFile() {
+    sharedFile->fileLock->Release();
+}
+
+bool
+OpenFile::Locked() const {
+    return sharedFile->fileLock->IsHeldByCurrentThread();
+}
+
+bool
+OpenFile::IsDirectory() const {
+    return isDirectory;
 }

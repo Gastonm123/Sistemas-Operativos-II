@@ -115,9 +115,12 @@ public:
     // the UNIX idiom -- `lseek` to end of file, `tell`, `lseek` back).
     unsigned Length() const;
 
+    // Determina si es un directorio.
+    bool IsDirectory() const;
 private:
     SharedFile *sharedFile; ///< Object shared by all users of the same file.
     unsigned seekPosition;  ///< Current position within the file.
+    bool isDirectory;
 };
 
 #endif
