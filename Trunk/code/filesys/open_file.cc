@@ -187,6 +187,7 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     sharedFile->fileLock->Acquire();
     // Write modified sectors back.
     for (unsigned i = firstSector; i <= lastSector; i++) {
+        DEBUG('f', "Writing to sector %u.\n", hdr->ByteToSector(i * SECTOR_SIZE));
         synchDisk->WriteSector(hdr->ByteToSector(i * SECTOR_SIZE),
                                &buf[(i - firstSector) * SECTOR_SIZE]);
     }

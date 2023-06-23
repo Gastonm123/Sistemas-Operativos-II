@@ -29,7 +29,6 @@
 #include <ctype.h>
 #include <stdio.h>
 
-
 /// Initialize a fresh file header for a newly created file.  Allocate data
 /// blocks for the file out of the map of free disk blocks.  Return false if
 /// there are not enough free blocks to accomodate the new file.
@@ -47,13 +46,81 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
 
     raw.numBytes = fileSize;
     raw.numSectors = DivRoundUp(fileSize, SECTOR_SIZE);
-    if (freeMap->CountClear() < raw.numSectors) {
+
+    /// The header sector is reserved beforehand, but the sectors containing
+    /// indirect blocks are not.
+    unsigned numIndirect = 0; //< Sectors containing indirect blocks.
+
+    if (raw.numSectors > NUM_DIRECT) {
+        numIndirect += 1;
+    }
+    if (raw.numSectors > NUM_DIRECT + NUM_DATAPTR) {
+        numIndirect += DivRoundUp(raw.numSectors - NUM_DIRECT - NUM_DATAPTR,
+                                  NUM_DATAPTR) + 1;
+    }
+
+    if (freeMap->CountClear() < raw.numSectors + numIndirect) {
         return false;  // Not enough space.
     }
 
-    for (unsigned i = 0; i < raw.numSectors; i++) {
-        raw.dataSectors[i] = freeMap->Find();
+    /// Reserve indirect blocks first.
+    unsigned *dataPtrList = nullptr;
+    for (unsigned i = 0; i < numIndirect; i++) {
+        switch (i) {
+        case 0:
+            raw.dataPtr = freeMap->Find();
+        break;
+        case 1:
+            raw.dataPtrPtr = freeMap->Find();
+            dataPtrList = new unsigned[NUM_DATAPTR];
+        break;
+        default:
+            dataPtrList[i-2] = freeMap->Find();
+        }
     }
+    if (dataPtrList) {
+        synchDisk->WriteSector(raw.dataPtrPtr, (char*) dataPtrList);
+        // delete [] dataPtrList; the list is reused.
+    }
+
+    /// Reserve data blocks.
+    unsigned remaining = raw.numSectors;
+    for (unsigned i = 0; remaining > 0 && i < NUM_DIRECT; i++) {
+        raw.dataSectors[i] = freeMap->Find();
+        remaining--;
+    }
+
+    if (remaining) {
+        unsigned *dataPtrBuf = new unsigned[NUM_DATAPTR];
+        for (unsigned i = 0; remaining > 0 && i < NUM_DATAPTR; i++) {
+            dataPtrBuf[i] = freeMap->Find();
+            remaining--;
+        }
+        synchDisk->WriteSector(raw.dataPtr, (char*) dataPtrBuf);
+        delete [] dataPtrBuf;
+    }
+
+    if (remaining) {
+        unsigned *dataPtrBuf  = new unsigned[NUM_DATAPTR]; //< reused for every block in
+                                                           //< dataPtrList.
+        unsigned sector = 0; //< which sector of dataPtrList.
+        unsigned c = 0;      //< contents in dataPtrBuf.
+        for (; remaining > 0; remaining--) {
+            dataPtrBuf[c] = freeMap->Find();
+
+            if (++c == NUM_DATAPTR) {
+                synchDisk->WriteSector(dataPtrList[sector], (char*) dataPtrBuf);
+                sector++;
+                c = 0;
+            }
+        }
+        if (c > 0) {
+            synchDisk->WriteSector(dataPtrList[sector], (char*) dataPtrBuf);
+        }
+        delete [] dataPtrBuf;
+        delete [] dataPtrList;
+    }
+
     return true;
 }
 
@@ -65,9 +132,75 @@ FileHeader::Deallocate(Bitmap *freeMap)
 {
     ASSERT(freeMap != nullptr);
 
-    for (unsigned i = 0; i < raw.numSectors; i++) {
+    unsigned numIndirect = 0; //< Sectors containing indirect blocks.
+
+    if (raw.numSectors > NUM_DIRECT) {
+        numIndirect += 1;
+    }
+    if (raw.numSectors > NUM_DIRECT + NUM_DATAPTR) {
+        numIndirect += DivRoundUp(raw.numSectors - NUM_DIRECT - NUM_DATAPTR,
+                                  NUM_DATAPTR) + 1;
+    }
+
+    /// Deallocate indirect blocks first.
+    unsigned *dataPtrList = nullptr;
+    /// dataPtrList is not freed as it is used later.
+    for (unsigned i = 0; i < numIndirect; i++) {
+        switch (i) {
+        case 0:
+            ASSERT(freeMap->Test(raw.dataPtr));  // ought to be marked!
+            freeMap->Clear(raw.dataPtr);
+        break;
+        case 1:
+            ASSERT(freeMap->Test(raw.dataPtrPtr));  // ought to be marked!
+            freeMap->Clear(raw.dataPtrPtr);
+
+            dataPtrList = new unsigned[NUM_DATAPTR];
+            synchDisk->ReadSector(raw.dataPtrPtr, (char*) dataPtrList);
+        break;
+        default:
+            ASSERT(freeMap->Test(dataPtrList[i-2]));  // ought to be marked!
+            freeMap->Clear(dataPtrList[i-2]);
+        }
+    }
+
+    /// Deallocate data blocks.
+    unsigned remaining = raw.numSectors;
+
+    for (unsigned i = 0; remaining > 0 && i < NUM_DIRECT; i++) {
         ASSERT(freeMap->Test(raw.dataSectors[i]));  // ought to be marked!
         freeMap->Clear(raw.dataSectors[i]);
+        remaining--;
+    }
+
+    if (remaining) {
+        unsigned *dataPtrBuf = new unsigned[NUM_DATAPTR];
+        synchDisk->ReadSector(raw.dataPtr, (char*) dataPtrBuf);
+        for (unsigned i = 0; remaining > 0 && i < NUM_DATAPTR; i++) {
+            ASSERT(freeMap->Test(dataPtrBuf[i]));  // ought to be marked!
+            freeMap->Clear(dataPtrBuf[i]);
+            remaining--;
+        }
+        delete [] dataPtrBuf;
+    }
+
+    if (remaining) {
+        unsigned *dataPtrBuf  = new unsigned[NUM_DATAPTR]; //< reused for every block in
+                                                           //< dataPtrList.
+        unsigned sector = 0; //< which sector of dataPtrList.
+        unsigned c = 0;      //< position in dataPtrBuf.
+        synchDisk->ReadSector(dataPtrList[sector], (char*) dataPtrBuf);
+        for (; remaining > 0; remaining--) {
+            ASSERT(freeMap->Test(dataPtrBuf[c]));  // ought to be marked!
+            freeMap->Clear(dataPtrBuf[c]);
+
+            if (++c == NUM_DATAPTR) {
+                synchDisk->ReadSector(dataPtrList[++sector], (char*) dataPtrBuf);
+                c = 0;
+            }
+        }
+        delete [] dataPtrBuf;
+        delete [] dataPtrList;
     }
 }
 
@@ -98,7 +231,29 @@ FileHeader::WriteBack(unsigned sector)
 unsigned
 FileHeader::ByteToSector(unsigned offset)
 {
-    return raw.dataSectors[offset / SECTOR_SIZE];
+    unsigned virtualSector = offset / SECTOR_SIZE;
+    if (virtualSector < NUM_DIRECT) {
+        return raw.dataSectors[virtualSector];
+    }
+
+    if (virtualSector < NUM_DIRECT + NUM_DATAPTR) {
+        unsigned *dataPtrBuf = new unsigned[NUM_DATAPTR];
+        synchDisk->ReadSector(raw.dataPtr, (char*) dataPtrBuf);
+        unsigned sector = dataPtrBuf[virtualSector - NUM_DIRECT];
+        delete [] dataPtrBuf;
+        return sector;
+    }
+
+    unsigned *dataPtrBuf  = new unsigned[NUM_DATAPTR];
+    unsigned *dataPtrList = new unsigned[NUM_DATAPTR];
+    virtualSector  = virtualSector - NUM_DIRECT - NUM_DATAPTR;
+    unsigned index = virtualSector / NUM_DATAPTR;
+    synchDisk->ReadSector(raw.dataPtrPtr, (char*) dataPtrList);
+    synchDisk->ReadSector(dataPtrList[index], (char*) dataPtrBuf);
+    unsigned sector = dataPtrBuf[virtualSector % NUM_DATAPTR];
+    delete [] dataPtrList;
+    delete [] dataPtrBuf;
+    return sector;
 }
 
 /// Return the number of bytes in the file.
@@ -125,12 +280,13 @@ FileHeader::Print(const char *title)
            "    block indexes: ",
            raw.numBytes);
 
-    for (unsigned i = 0; i < raw.numSectors; i++) {
+    unsigned numDirect = min(raw.numSectors, NUM_DIRECT);
+    for (unsigned i = 0; i < numDirect; i++) {
         printf("%u ", raw.dataSectors[i]);
     }
     printf("\n");
 
-    for (unsigned i = 0, k = 0; i < raw.numSectors; i++) {
+    for (unsigned i = 0, k = 0; i < numDirect; i++) {
         printf("    contents of block %u:\n", raw.dataSectors[i]);
         synchDisk->ReadSector(raw.dataSectors[i], data);
         for (unsigned j = 0; j < SECTOR_SIZE && k < raw.numBytes; j++, k++) {
@@ -143,6 +299,10 @@ FileHeader::Print(const char *title)
         printf("\n");
     }
     delete [] data;
+
+    if (numDirect < raw.numSectors) {
+        printf("Contents of indirect blocks omitted.\n");
+    }
 }
 
 const RawFileHeader *

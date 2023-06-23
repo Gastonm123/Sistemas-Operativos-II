@@ -359,6 +359,11 @@ CheckSector(unsigned sector, Bitmap *shadowMap)
                          "sector number already used.");
 }
 
+/// It is necessary to use the disk defined in system.cc to access indirect
+/// blocks of file headers.
+#include "synch_disk.hh"
+extern SynchDisk *synchDisk;
+
 static bool
 CheckFileHeader(const RawFileHeader *rh, unsigned num, Bitmap *shadowMap)
 {
@@ -373,10 +378,45 @@ CheckFileHeader(const RawFileHeader *rh, unsigned num, Bitmap *shadowMap)
                            "sector count not compatible with file size.");
     error |= CheckForError(rh->numSectors < NUM_DIRECT,
                            "too many blocks.");
-    for (unsigned i = 0; i < rh->numSectors; i++) {
+    unsigned remaining = rh->numSectors;
+    for (unsigned i = 0; remaining > 0 && i < NUM_DIRECT; i++) {
         unsigned s = rh->dataSectors[i];
         error |= CheckSector(s, shadowMap);
+        remaining--;
     }
+
+    if (!error && remaining) {
+        unsigned *dataPtrBuf = new unsigned[NUM_DATAPTR];
+        synchDisk->ReadSector(rh->dataPtr, (char*) dataPtrBuf);
+        for (unsigned i = 0; remaining > 0 && i < NUM_DATAPTR; i++) {
+            unsigned s = dataPtrBuf[i];
+            error |= CheckSector(s, shadowMap);
+            remaining--;
+        }
+        delete [] dataPtrBuf;
+    }
+
+    if (!error && remaining) {
+        unsigned *dataPtrList = new unsigned[NUM_DATAPTR];
+        unsigned *dataPtrBuf  = new unsigned[NUM_DATAPTR];
+        unsigned c = 0; //< position inside dataPtrBuf.
+        unsigned sector = 0; //< which sector of dataPtrList.
+        synchDisk->ReadSector(rh->dataPtrPtr, (char*) dataPtrList);
+        synchDisk->ReadSector(dataPtrList[sector], (char*) dataPtrBuf);
+        for (; remaining > 0; remaining--) {
+            unsigned s = dataPtrBuf[c];
+            error |= CheckSector(s, shadowMap);
+
+            if (++c == NUM_DATAPTR) {
+                synchDisk->ReadSector(dataPtrList[++sector], (char*)
+                                      dataPtrBuf);
+                c = 0;
+            }
+        }
+        delete [] dataPtrBuf;
+        delete [] dataPtrList;
+    }
+
     return error;
 }
 
