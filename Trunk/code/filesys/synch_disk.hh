@@ -12,7 +12,25 @@
 #include "machine/disk.hh"
 #include "threads/lock.hh"
 #include "threads/semaphore.hh"
+#include "lib/list.hh"
 
+///< This class defines a cache entry for the synchronous disk.
+///< Cache entries somewhat like ram pages, making reclaim a task that can be
+///< performed using second chance.
+class DiskCache {
+public:
+    ////<  Sector number.
+    int sector;
+
+    ///< Flag signaling this sector is to be written at some later time.
+    bool dirty;
+
+    ///< Flag signaling this entry is valid.
+    bool use;
+
+    ///< Sector data.
+    char data[SECTOR_SIZE];
+};
 
 /// The following class defines a "synchronous" disk abstraction.
 ///
@@ -50,6 +68,14 @@ private:
                            ///< interrupt handler.
     Lock *lock;  ///< Only one read/write request can be sent to the disk at
                  ///< a time.
+    DiskCache *cache; ///< Read and write cache.
+    unsigned victim; ///< Reclaim victim.
+
+    /// Find an entry that is suitable to be overwritten by some other data.
+    /// If the entry is dirty, write it to disk before returning.
+    unsigned ReclaimCache();
+
+    List<DiskCache*> *writeQ; ///< Writes must be processed in order.
 };
 
 
