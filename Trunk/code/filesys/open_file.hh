@@ -115,6 +115,16 @@ public:
     // the UNIX idiom -- `lseek` to end of file, `tell`, `lseek` back).
     unsigned Length() const;
 
+    /// Tomar lock del archivo.
+    void LockFile();
+
+    /// Liberar lock del archivo.
+    void UnlockFile();
+
+    /// Determina si el lock del archivo esta tomado por el
+    /// thread actual.
+    bool Locked() const;
+
     // Determina si es un directorio.
     bool IsDirectory() const;
 private:

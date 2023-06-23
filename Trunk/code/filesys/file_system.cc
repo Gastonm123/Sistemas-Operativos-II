@@ -46,7 +46,6 @@
 #include "directory.hh"
 #include "file_header.hh"
 #include "lib/bitmap.hh"
-#include "threads/lock.hh"
 
 #include "file_table.hh"
 extern FileTable *fileTable;
@@ -135,14 +134,12 @@ FileSystem::FileSystem(bool format)
         directoryFile = new OpenFile(DIRECTORY_SECTOR);
     }
 
-    fsLock = new Lock("filesystem lock");
 }
 
 FileSystem::~FileSystem()
 {
     delete freeMapFile;
     delete directoryFile;
-    delete fsLock;
 }
 
 /// Create a file in the Nachos file system (similar to UNIX `create`).
@@ -178,8 +175,9 @@ FileSystem::Create(const char *name, unsigned initialSize)
 
     DEBUG('f', "Creating file %s, size %u\n", name, initialSize);
 
-    fsLock->Acquire();
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    // Lock archivo del directorio.
+    directoryFile->LockFile();
     dir->FetchFrom(directoryFile);
 
     bool success;
@@ -188,6 +186,8 @@ FileSystem::Create(const char *name, unsigned initialSize)
         success = false;  // File is already in directory.
     } else {
         Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+        // Lock archivo del bitmap.
+        freeMapFile->LockFile();
         freeMap->FetchFrom(freeMapFile);
         int sector = freeMap->Find();
           // Find a sector to hold the file header.
@@ -207,10 +207,11 @@ FileSystem::Create(const char *name, unsigned initialSize)
             }
             delete h;
         }
+        freeMapFile->UnlockFile();
         delete freeMap;
     }
+    directoryFile->UnlockFile();
     delete dir;
-    fsLock->Release();
     return success;
 }
 
@@ -226,11 +227,13 @@ FileSystem::Open(const char *name)
 {
     ASSERT(name != nullptr);
 
-    fsLock->Acquire();
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     OpenFile  *openFile = nullptr;
 
     DEBUG('f', "Opening file %s\n", name);
+
+    // Lock archivo de dir.
+    directoryFile->LockFile();
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector >= 0) {
@@ -241,9 +244,9 @@ FileSystem::Open(const char *name)
             openFile = nullptr;
         }
     }
+    directoryFile->UnlockFile();
     delete dir;
-    fsLock->Release();
-    return openFile;  // Return null if not found.
+    return openFile;  // Return null if not found o es un directorio.
 }
 
 /// Delete a file from the file system.
@@ -263,13 +266,14 @@ FileSystem::Remove(const char *name)
 {
     ASSERT(name != nullptr);
 
-    fsLock->Acquire();
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    // Lock archivo de dir.
+    directoryFile->LockFile();
     dir->FetchFrom(directoryFile);
     int sector = dir->Find(name);
     if (sector == -1) {
+       directoryFile->UnlockFile();
        delete dir;
-       fsLock->Release();
        return false;  // file not found
     }
 
@@ -277,8 +281,8 @@ FileSystem::Remove(const char *name)
     if (fileTable->MarkForRemove(sector)) {
         dir->Remove(name);
         dir->WriteBack(directoryFile);    // Flush to disk.
+        directoryFile->UnlockFile();
         delete dir;
-        fsLock->Release();
         return true;
     }
 
@@ -286,6 +290,8 @@ FileSystem::Remove(const char *name)
     fileH->FetchFrom(sector);
 
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    // Lock archivo de bitmap.
+    freeMapFile->LockFile();
     freeMap->FetchFrom(freeMapFile);
 
     fileH->Deallocate(freeMap);  // Remove data blocks.
@@ -294,17 +300,18 @@ FileSystem::Remove(const char *name)
 
     dir->WriteBack(directoryFile);    // Flush to disk.
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
+    freeMapFile->UnlockFile();
+
     delete fileH;
     delete dir;
     delete freeMap;
-    fsLock->Release();
     return true;
 }
 
 /// Liberate a file's blocks after it is no longer used.
 void FileSystem::Liberate(unsigned sector)
 {
-    /// The file is unused and unreacheable. No need to acquire fsLock.
+    /// The file is unused and unreacheable. No need to acquire lock.
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
 
@@ -457,7 +464,10 @@ FileSystem::Check()
     DEBUG('f', "Performing filesystem check\n");
     bool error = false;
 
-    fsLock->Acquire();
+    // TODO: esta bien esto?
+    freeMapFile->LockFile();
+    directoryFile->LockFile();
+
     Bitmap *shadowMap = new Bitmap(NUM_SECTORS);
     shadowMap->Mark(FREE_MAP_SECTOR);
     shadowMap->Mark(DIRECTORY_SECTOR);
@@ -503,7 +513,9 @@ FileSystem::Check()
     DEBUG('f', error ? "Filesystem check failed.\n"
                      : "Filesystem check succeeded.\n");
 
-    fsLock->Release();
+    freeMapFile->UnlockFile();
+    directoryFile->UnlockFile();
+
     return !error;
 }
 

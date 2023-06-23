@@ -128,14 +128,21 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
     lastSector = DivRoundDown(position + numBytes - 1, SECTOR_SIZE);
     numSectors = 1 + lastSector - firstSector;
 
-    sharedFile->fileLock->Acquire();
+    bool alreadyLocked = Locked();
+    if (!alreadyLocked) {
+        LockFile();
+    }
+
     // Read in all the full and partial sectors that we need.
     buf = new char [numSectors * SECTOR_SIZE];
     for (unsigned i = firstSector; i <= lastSector; i++) {
         synchDisk->ReadSector(hdr->ByteToSector(i * SECTOR_SIZE),
                               &buf[(i - firstSector) * SECTOR_SIZE]);
     }
-    sharedFile->fileLock->Release();
+
+    if (!alreadyLocked) {
+        UnlockFile();
+    }
 
     // Copy the part we want.
     memcpy(into, &buf[position - firstSector * SECTOR_SIZE], numBytes);
@@ -173,6 +180,11 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     firstAligned = position == firstSector * SECTOR_SIZE;
     lastAligned  = position + numBytes == (lastSector + 1) * SECTOR_SIZE;
 
+    bool alreadyLocked = Locked();
+    if (!alreadyLocked) {
+        LockFile();
+    }
+
     // Read in first and last sector, if they are to be partially modified.
     if (!firstAligned) {
         ReadAt(buf, SECTOR_SIZE, firstSector * SECTOR_SIZE);
@@ -185,13 +197,16 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     // Copy in the bytes we want to change.
     memcpy(&buf[position - firstSector * SECTOR_SIZE], from, numBytes);
 
-    sharedFile->fileLock->Acquire();
     // Write modified sectors back.
     for (unsigned i = firstSector; i <= lastSector; i++) {
         synchDisk->WriteSector(hdr->ByteToSector(i * SECTOR_SIZE),
                                &buf[(i - firstSector) * SECTOR_SIZE]);
     }
-    sharedFile->fileLock->Release();
+
+    if (!alreadyLocked) {
+        UnlockFile();
+    }
+
     delete [] buf;
     return numBytes;
 }
