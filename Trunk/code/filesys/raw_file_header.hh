@@ -10,7 +10,7 @@
 #include "machine/disk.hh"
 
 
-static const unsigned NUM_DIRECT = (SECTOR_SIZE - 4 * sizeof (int)) / sizeof (int);
+static const unsigned NUM_DIRECT = (SECTOR_SIZE - 5 * sizeof (int)) / sizeof (int);
 static const unsigned NUM_DATAPTR = SECTOR_SIZE / sizeof(int);
 static const unsigned NUM_DATAPTRPTR = NUM_DATAPTR * NUM_DATAPTR;
 const unsigned MAX_FILE_SIZE = (NUM_DIRECT + NUM_DATAPTR + NUM_DATAPTRPTR) * SECTOR_SIZE;
@@ -22,6 +22,7 @@ struct RawFileHeader {
                                        ///< block in the file.
     unsigned dataPtr;     ///< Pointer to a block of data sectors.
     unsigned dataPtrPtr;  ///< Pointer to a block of dataPtr.
+    bool directory; ///< Flag de directorio.
 };
 
 #endif

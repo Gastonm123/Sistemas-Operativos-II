@@ -44,6 +44,9 @@ public:
     /// table.
     bool MarkForRemove(unsigned sector);
 
+    /// Determina si el archivo esta abierto.
+    bool Used(unsigned sector);
+
     /// Decrease the user count and delete the reference when no one is using
     /// it.
     void Close(SharedFile *sharedFile);

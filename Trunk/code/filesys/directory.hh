@@ -18,7 +18,6 @@
 #include "raw_directory.hh"
 #include "open_file.hh"
 
-
 /// The following class defines a UNIX-like “directory”.  Each entry in the
 /// directory describes a file, and where to find it on disk.
 ///
@@ -64,6 +63,9 @@ public:
     /// NOTE: this should only be used by routines that operating on the file
     /// system at a low level.
     const RawDirectory *GetRaw() const;
+
+    /// Determina si el directorio esta vacio.
+    bool Empty() const;
 
 private:
     /// Find the index into the directory table corresponding to `name`.

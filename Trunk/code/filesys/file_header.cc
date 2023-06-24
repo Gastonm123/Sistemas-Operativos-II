@@ -36,7 +36,7 @@
 /// * `freeMap` is the bit map of free disk sectors.
 /// * `fileSize` is the bit map of free disk sectors.
 bool
-FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
+FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, bool directory)
 {
     ASSERT(freeMap != nullptr);
 
@@ -121,6 +121,7 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize)
         delete [] dataPtrList;
     }
 
+    raw.directory = directory;
     return true;
 }
 
@@ -309,4 +310,9 @@ const RawFileHeader *
 FileHeader::GetRaw() const
 {
     return &raw;
+}
+
+bool
+FileHeader::IsDirectory() const{
+    return raw.directory;
 }

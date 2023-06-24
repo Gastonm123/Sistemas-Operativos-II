@@ -95,6 +95,7 @@ void StartProcess(const char *file);
 void ConsoleTest(const char *in, const char *out);
 void MailTest(int networkID);
 void ConcurrentFileSysTest();
+void DirectoryTest();
 
 static inline void
 PrintVersion()
@@ -175,7 +176,10 @@ main(int argc, char **argv)
             fileSystem->List();
             printf("\n");
         } else if (!strcmp(*argv, "-D")) {   // Print entire filesystem.
-            fileSystem->Print();
+            fileSystem->Print(false);
+            printf("\n");
+        } else if (!strcmp(*argv, "-Dr")) {   // Print entire filesystem recursivamente.
+            fileSystem->Print(true);
             printf("\n");
         } else if (!strcmp(*argv, "-c")) {   // Check the filesystem.
             bool result = fileSystem->Check();
@@ -184,6 +188,8 @@ main(int argc, char **argv)
             PerformanceTest();
         } else if (!strcmp(*argv, "-ct")) {  // Concurrent test.
             ConcurrentFileSysTest();
+        } else if (!strcmp(*argv, "-dt")) {  // Directory test.
+            DirectoryTest();
         }
 #endif
 #ifdef NETWORK

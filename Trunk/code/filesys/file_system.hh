@@ -95,6 +95,7 @@ public:
 #include "directory_entry.hh"
 #include "machine/disk.hh"
 
+class Directory;
 
 /// Initial file sizes for the bitmap and directory; until the file system
 /// supports extensible files, the directory size sets the maximum number of
@@ -104,8 +105,6 @@ static const unsigned NUM_DIR_ENTRIES = 10;
 static const unsigned DIRECTORY_FILE_SIZE
   = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
 
-
-class Lock;
 
 class FileSystem {
 public:
@@ -134,18 +133,32 @@ public:
     /// List all the files in the file system.
     void List();
 
+    /// Crea directorio.
+    bool MakeDirectory(const char *name);
+
+    /// Cambia el directorio actual del thread actual.
+    bool ChangeDirectory(const char* name);
+
+    /// Lista los archivos del directorio.
+    bool ListDirectory(const char* name);
+
+    /// Borra el directorio si esta vacio y no esta abierto.
+    bool RemoveDirectory(const char* name);
+
     /// Check the filesystem.
     bool Check();
 
     /// List all the files and their contents.
-    void Print();
+    void Print(bool recursive);
 
 private:
     OpenFile *freeMapFile;  ///< Bit map of free disk blocks, represented as a
                             ///< file.
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
-    Lock *fsLock;
+    OpenFile *OpenDirectory(const char *path);
+
+    void PrintDirectory(Directory *dir, bool recursive);
 };
 
 #endif

@@ -36,7 +36,7 @@ public:
 
     /// Initialize a file header, including allocating space on disk for the
     /// file data.
-    bool Allocate(Bitmap *bitMap, unsigned fileSize);
+    bool Allocate(Bitmap *bitMap, unsigned fileSize, bool directory);
 
     /// De-allocate this file's data blocks.
     void Deallocate(Bitmap *bitMap);
@@ -62,6 +62,9 @@ public:
     /// NOTE: this should only be used by routines that operate on the file
     /// system at a low level.
     const RawFileHeader *GetRaw() const;
+
+    /// Determina si es un directorio.
+    bool IsDirectory() const;
 
 private:
     RawFileHeader raw;
