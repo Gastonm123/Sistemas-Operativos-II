@@ -2,3 +2,4 @@
 *.depends
 *.coff
 nachos
+*DISK

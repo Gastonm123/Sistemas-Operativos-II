@@ -131,6 +131,7 @@ public:
     void Liberate(unsigned sector);
 
     /// List all the files in the file system.
+    /// * DEPRECATED *
     void List();
 
     /// Crea directorio.
@@ -157,6 +158,19 @@ private:
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
     OpenFile *OpenDirectory(const char *path);
+
+    /// Get current working directory. If there is none, the root directory.
+    OpenFile *GetCurrentDir();
+
+    /// Traverse the `path` and return the last directory and filename at the end.
+    ///
+    /// * `path` is the path to a file or directory.
+    /// * `directory` is a pointer where the last directory's file is stored.
+    /// * `filename` is a pointer where the filename is stored.
+    ///
+    /// Additionaly, the lock for `directory` is acquired.
+    void FindFile(const char * path, OpenFile **directory,
+                  const char **filename);
 
     void PrintDirectory(Directory *dir, bool recursive);
 };
