@@ -143,8 +143,16 @@ FileSystem::~FileSystem()
     delete directoryFile;
 }
 
+/// Get current working directory. If there is none, the root directory.
+OpenFile*
+FileSystem::GetCurrentDir()
+{
+    if (currentThread->currentDirectory)
+        return currentThread->currentDirectory;
+    return directoryFile;
+}
+
 /// Abre el directorio de la direccion dada.
-/// Corresponde al caller chequear que el directorio no sea raiz/current.
 /// Efecto secundario: el lock del directorio esta tomado.
 OpenFile*
 FileSystem::OpenDirectory(const char *path) {
@@ -154,24 +162,12 @@ FileSystem::OpenDirectory(const char *path) {
     char buffer[FILE_NAME_MAX_LEN + 1];
     OpenFile *dirFile;
 
-    bool rootDir = false;
-    if (*path == '/') {
-        rootDir = true;
+    if (path[0] == '/') {
+        dirFile = directoryFile;
         path++;
     }
-    else if (currentThread->currentDirectory == nullptr) {
-        rootDir = true;
-    }
-
-    if (*path == '\0') {
-        return nullptr;
-    }
-
-    if (rootDir) {
-        dirFile = directoryFile;
-    }
     else {
-        dirFile = currentThread->currentDirectory;
+        dirFile = GetCurrentDir();
     }
 
     // TODO: revisar cuando tengamos archivos extensibles.
@@ -183,8 +179,14 @@ FileSystem::OpenDirectory(const char *path) {
     while (nextBar != nullptr && success) {
         dir->FetchFrom(dirFile);
 
-        strncpy(buffer, path, nextBar - path);
-        buffer[nextBar - path] = '\0';
+        unsigned nameLen = nextBar - path;
+        if (nameLen > FILE_NAME_MAX_LEN) {
+            success = false;
+            break;
+        }
+
+        memcpy(buffer, path, nameLen);
+        buffer[nameLen] = '\0';
  
         int sector = dir->Find(buffer);
         if (sector == -1) {
@@ -211,12 +213,7 @@ FileSystem::OpenDirectory(const char *path) {
             }
         }
         path = nextBar + 1;
-        if (*path == '\0') {
-            success = false;
-        }
-        else {
-            nextBar = strchr(path, '/');
-        }
+        nextBar = strchr(path, '/');
     }
     if (!success) {
         dirFile->UnlockFile();
@@ -225,10 +222,39 @@ FileSystem::OpenDirectory(const char *path) {
             dirFile = nullptr;
         }
     }
+    delete dir;
 
     return dirFile;
 }
 
+/// Traverse the `path` and return the last directory and filename at the end.
+///
+/// * `path` is the path to a file or directory.
+/// * `directory` is a pointer where the last directory's file is stored.
+/// * `filename` is a pointer where the filename is stored.
+///
+/// Additionaly, the lock for `directory` is acquired.
+void
+FileSystem::FindFile(const char * path, OpenFile **directory, const char **filename)
+{
+    if (path == nullptr || path[0] == '\0') {
+        *directory = nullptr;
+        *filename  = nullptr;
+    }
+    else {
+        const char *lastBar = strrchr(path, '/');
+        if (lastBar == nullptr) {
+            *filename = path;
+        }
+        else if (lastBar[1] == '\0') {
+            *filename = nullptr;
+        }
+        else {
+            *filename = lastBar+1;
+        }
+        *directory = OpenDirectory(path);
+    }
+}
 
 /// Create a file in the Nachos file system (similar to UNIX `create`).
 /// Since we cannot increase the size of files dynamically, we have to give
@@ -263,45 +289,25 @@ FileSystem::Create(const char *name, unsigned initialSize)
 
     DEBUG('f', "Creating file %s, size %u\n", name, initialSize);
 
-    OpenFile *dirFile;
-    bool closeDir;
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
 
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            return false;
+    FindFile(name, &dirFile, &filename);
+
+    if (!filename) {
+        if (dirFile) {
+            dirFile->UnlockFile();
+            delete dirFile;
         }
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
+        return false;
     }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            return false;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            return false;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
+    ASSERT(dirFile);
 
     // TODO: revisar cuando haya archivos ext.
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(dirFile);
     bool success = true;
-    if (dir->Find(name) != -1) {
+    if (dir->Find(filename) != -1) {
         success = false;  // File is already in directory.
     } else {
         Bitmap *freeMap = new Bitmap(NUM_SECTORS);
@@ -312,7 +318,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
           // Find a sector to hold the file header.
         if (sector == -1) {
             success = false;  // No free block for file header.
-        } else if (!dir->Add(name, sector)) {
+        } else if (!dir->Add(filename, sector)) {
             success = false;  // No space in directory.
         } else {
             FileHeader *h = new FileHeader;
@@ -330,9 +336,12 @@ FileSystem::Create(const char *name, unsigned initialSize)
         delete freeMap;
     }
     dirFile->UnlockFile();
-    if (closeDir) {
+
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
+    delete dir;
 
     return success;
 }
@@ -350,46 +359,26 @@ FileSystem::Open(const char *name)
     ASSERT(name != nullptr);
     DEBUG('f', "Opening file %s\n", name);
 
-    OpenFile *dirFile;
-    bool closeDir;
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
 
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            return nullptr;
-        }
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            return nullptr;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            return nullptr;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
+    FindFile(name, &dirFile, &filename);
 
-    OpenFile  *openFile = nullptr;
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    if (!filename) {
+        if (dirFile) {
+            dirFile->UnlockFile();
+            delete dirFile;
+        }
+        return nullptr;
+    }
+    ASSERT(dirFile);
+
+    OpenFile *openFile = nullptr;
+    Directory *dir     = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(dirFile);
-    int sector = dir->Find(name);
+    int sector = dir->Find(filename);
     if (sector >= 0) {
-        openFile = new OpenFile(sector);  // `name` was found in directory.
+        openFile = new OpenFile(sector);  // `filename` was found in directory.
         if (openFile->IsDirectory()) {
             // El archivo es un directorio; operacion invalida.
             delete openFile;
@@ -397,10 +386,13 @@ FileSystem::Open(const char *name)
         }
     }
     dirFile->UnlockFile();
-    if (closeDir) {
+
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
     delete dir;
+
     return openFile;  // Return null if not found o es un directorio.
 }
 
@@ -420,51 +412,277 @@ bool
 FileSystem::Remove(const char *name)
 {
     ASSERT(name != nullptr);
-
     DEBUG('f', "Removing file %s\n", name);
 
-    OpenFile *dirFile;
-    bool closeDir;
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
 
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            return false;
-        }
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            return false;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            return false;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
+    FindFile(name, &dirFile, &filename);
 
+    if (!filename) {
+        if (dirFile) {
+            dirFile->UnlockFile();
+            delete dirFile;
+        }
+        return false;
+    }
+    ASSERT(dirFile);
 
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     dir->FetchFrom(dirFile);
-    int sector = dir->Find(name);
+    int sector = dir->Find(filename);
+    bool success = false;
+    if (sector >= 0) {
+        DEBUG('f', "Removing file header from sector %d\n", sector);
+
+        FileHeader *fileH = new FileHeader;
+        fileH->FetchFrom(sector);
+
+        if (!fileH->IsDirectory()) {
+            /// If the file is being used the remove will be later.
+            if (fileTable->MarkForRemove(sector)) {
+                DEBUG('f', "File is being used, removing later.\n");
+                dir->Remove(filename);
+                dir->WriteBack(dirFile);    // Flush to disk.
+            }
+            else {
+                Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+                // Lock archivo de bitmap.
+                freeMapFile->LockFile();
+                freeMap->FetchFrom(freeMapFile);
+
+                fileH->Deallocate(freeMap);  // Remove data blocks.
+                freeMap->Clear(sector);      // Remove header block.
+                dir->Remove(filename);
+
+                dir->WriteBack(dirFile);    // Flush to disk.
+                dirFile->UnlockFile();
+                freeMap->WriteBack(freeMapFile);  // Flush to disk.
+                freeMapFile->UnlockFile();
+                delete freeMap;
+            }
+            success = true;
+        }
+
+        delete fileH;
+    }
+
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
+        delete dirFile;
+    }
+    delete dir;
+
+    return success;
+}
+
+bool
+FileSystem::MakeDirectory(const char *name)
+{
+    ASSERT(name != nullptr);
+    DEBUG('f', "Creating dir %s", name);
+
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
+
+    /// NOTICE: si el nombre del directorio incluye una / al final, la funcion
+    /// FindFile va a fallar.
+    FindFile(name, &dirFile, &filename);
+
+    if (!filename) {
+        if (dirFile) {
+            dirFile->UnlockFile();
+            delete dirFile;
+        }
+        return false;
+    }
+    ASSERT(dirFile);
+
+    // TODO: revisar cuando haya archivos ext.
+    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dir->FetchFrom(dirFile);
+    bool success = true;
+    if (dir->Find(filename) != -1) {
+        success = false;  // File is already in directory.
+    } else {
+        Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+        // Lock archivo del bitmap.
+        freeMapFile->LockFile();
+        freeMap->FetchFrom(freeMapFile);
+        int sector = freeMap->Find();
+          // Find a sector to hold the file header.
+        if (sector == -1) {
+            success = false;  // No free block for file header.
+        } else if (!dir->Add(filename, sector)) {
+            success = false;  // No space in directory.
+        } else {
+            FileHeader *h = new FileHeader;
+            unsigned size = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
+            success = h->Allocate(freeMap, size, true);
+            // Fails if no space on disk for data.
+            if (success) {
+                // Everything worked, flush all changes back to disk.
+                h->WriteBack(sector);
+                freeMap->WriteBack(freeMapFile);
+                dir->WriteBack(dirFile);
+            }
+            delete h;
+        }
+        freeMapFile->UnlockFile();
+        delete freeMap;
+    }
+    dirFile->UnlockFile();
+
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
+        delete dirFile;
+    }
+    delete dir;
+
+    return success;
+}
+
+bool
+FileSystem::ChangeDirectory(const char* name) {
+    ASSERT(name != nullptr);
+    
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
+
+    FindFile(name, &dirFile, &filename);
+
+    /// Si el nombre del directorio incluye una / al final, dirFile es nuestro
+    /// target.
+    if (!filename) {
+        if (dirFile) {
+            if (currentThread->currentDirectory != nullptr) {
+                delete currentThread->currentDirectory;
+            }
+            currentThread->currentDirectory = dirFile;
+            dirFile->UnlockFile();
+            return true;
+        }
+        return false;
+    }
+    ASSERT(dirFile);
+
+    bool success = true;
+    OpenFile  *openDir = nullptr;
+    Directory *dir     = new Directory(NUM_DIR_ENTRIES);
+    dir->FetchFrom(dirFile);
+    int sector = dir->Find(filename);
+    if (sector >= 0) {
+        openDir = new OpenFile(sector);  // `filename` was found in directory.
+        if (!openDir->IsDirectory()) {
+            // El archivo no es un directorio; operacion invalida.
+            delete openDir;
+            success = false;
+        }
+    }
+    dirFile->UnlockFile();
+
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
+        delete dirFile;
+    }
+    delete dir;
+
+    if (success) {
+        if (currentThread->currentDirectory != nullptr) {
+            delete currentThread->currentDirectory;
+        }
+        currentThread->currentDirectory = openDir;
+    }
+         
+    return success;
+}
+
+bool
+FileSystem::ListDirectory(const char* name) {
+    ASSERT(name != nullptr);
+
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
+
+    FindFile(name, &dirFile, &filename);
+
+    /// Si el nombre del directorio incluye una / al final, dirFile es nuestro
+    /// target.
+    if (!filename) {
+        if (dirFile) {
+            Directory *dir = new Directory(NUM_DIR_ENTRIES);
+            dir->FetchFrom(dirFile);
+            dirFile->UnlockFile();
+            dir->List();
+            delete dir;
+            delete dirFile;
+            return true;
+        }
+        return false;
+    }
+    ASSERT(dirFile);
+
+    bool success = true;
+    OpenFile *file;
+    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dir->FetchFrom(dirFile);
+    int sector = dir->Find(filename);
+    if (sector >= 0) {
+        file = new OpenFile(sector);  // `filename` was found in directory.
+        if (!file->IsDirectory()) {
+            // El archivo no es un directorio; operacion invalida.
+            success = false;
+        }
+        else {
+            dir->FetchFrom(file);
+        }
+        delete file;
+    }
+    dirFile->UnlockFile();
+
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
+        delete dirFile;
+    }
+
+    if (success) {
+        dir->List(); 
+    }
+
+    delete dir;
+    return success;
+}
+
+bool
+FileSystem::RemoveDirectory(const char *name)
+{
+    ASSERT(name != nullptr);
+    DEBUG('f', "Removing file %s\n", name);
+
+    OpenFile   *dirFile;  //< Directory.
+    const char *filename; //< Filename.
+
+    FindFile(name, &dirFile, &filename);
+
+    /// TODO: Si el nombre del directorio incluye una / al final, dirFile es
+    /// nuestro target.
+    if (!filename) {
+        if (dirFile) {
+            dirFile->UnlockFile();
+            delete dirFile;
+        }
+        return false;
+    }
+    ASSERT(dirFile);
+
+    Directory *dir = new Directory(NUM_DIR_ENTRIES);
+    dir->FetchFrom(dirFile);
+    int sector = dir->Find(filename);
     if (sector == -1) {
         dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
+        if (dirFile != directoryFile &&
+            dirFile != currentThread->currentDirectory) {
+            delete dirFile;
         }
         return false;  // file not found
     }
@@ -474,27 +692,44 @@ FileSystem::Remove(const char *name)
     FileHeader *fileH = new FileHeader;
     fileH->FetchFrom(sector);
 
-    if (fileH->IsDirectory()) {
+    if (!fileH->IsDirectory()) {
         dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
+        if (dirFile != directoryFile &&
+            dirFile != currentThread->currentDirectory) {
+            delete dirFile;
         }
-        return false;   // es un directorio
+        delete dir;
+        return false;   // no es un directorio
     }
 
-    /// If the file is being used the remove will be later.
-    if (fileTable->MarkForRemove(sector)) {
-
-        DEBUG('f', "File is being used, removing later.\n");
-
-        dir->Remove(name);
-        dir->WriteBack(dirFile);    // Flush to disk.
+    if (fileTable->Used(sector)) {
         dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
+        if (dirFile != directoryFile &&
+            dirFile != currentThread->currentDirectory) {
+            delete dirFile;
         }
-        delete fileH;
-        return true;
+        delete dir;
+        return false;   // el directorio esta abierto.
+    }
+
+    /// ???????????????
+    OpenFile *subdirFile = new OpenFile(sector);
+    Directory *subdir    = new Directory(NUM_DIR_ENTRIES);
+    subdirFile->LockFile();
+    subdir->FetchFrom(subdirFile);
+    bool empty = subdir->Empty();
+    subdirFile->UnlockFile();
+    delete subdirFile;
+    delete subdir;    
+
+    if (!empty) {
+        dirFile->UnlockFile();
+        if (dirFile != directoryFile &&
+            dirFile != currentThread->currentDirectory) {
+            delete dirFile;
+        }
+        delete dir;
+        return false;   // el directorio no esta vacio.
     }
 
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
@@ -504,17 +739,19 @@ FileSystem::Remove(const char *name)
 
     fileH->Deallocate(freeMap);  // Remove data blocks.
     freeMap->Clear(sector);      // Remove header block.
-    dir->Remove(name);
+    dir->Remove(filename);
 
     dir->WriteBack(dirFile);    // Flush to disk.
     dirFile->UnlockFile();
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
     freeMapFile->UnlockFile();
 
-    delete fileH;
-    if (closeDir) {
-        delete dir;
+    if (dirFile != directoryFile &&
+        dirFile != currentThread->currentDirectory) {
+        delete dirFile;
     }
+    delete fileH;
+    delete dir;
     delete freeMap;
     return true;
 }
@@ -542,6 +779,7 @@ void FileSystem::Liberate(unsigned sector)
 }
 
 /// List all the files in the file system directory.
+/// * DEPRECATED *
 void
 FileSystem::List()
 {
@@ -552,348 +790,6 @@ FileSystem::List()
     directoryFile->UnlockFile();
     dir->List();
     delete dir;
-}
-
-bool
-FileSystem::MakeDirectory(const char *name)
-{
-    ASSERT(name != nullptr);
-
-    int size = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;   
-
-    DEBUG('f', "Creating dir %s", name);
-
-    OpenFile *dirFile;
-    bool closeDir;
-
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            return false;
-        }
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            return false;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            return false;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
-
-    // TODO: revisar cuando haya archivos ext.
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(dirFile);
-    bool success = true;
-    if (dir->Find(name) != -1) {
-        success = false;  // File is already in directory.
-    } else {
-        Bitmap *freeMap = new Bitmap(NUM_SECTORS);
-        // Lock archivo del bitmap.
-        freeMapFile->LockFile();
-        freeMap->FetchFrom(freeMapFile);
-        int sector = freeMap->Find();
-          // Find a sector to hold the file header.
-        if (sector == -1) {
-            success = false;  // No free block for file header.
-        } else if (!dir->Add(name, sector)) {
-            success = false;  // No space in directory.
-        } else {
-            FileHeader *h = new FileHeader;
-            success = h->Allocate(freeMap, size, true);
-            // Fails if no space on disk for data.
-            if (success) {
-                // Everything worked, flush all changes back to disk.
-                h->WriteBack(sector);
-                freeMap->WriteBack(freeMapFile);
-                dir->WriteBack(dirFile);
-            }
-            delete h;
-        }
-        freeMapFile->UnlockFile();
-        delete freeMap;
-    }
-    dirFile->UnlockFile();
-    if (closeDir) {
-        delete dirFile;
-    }
-
-    return success;
-}
-
-bool
-FileSystem::ChangeDirectory(const char* name) {
-    ASSERT(name != nullptr);
-    
-    OpenFile *dirFile;
-    bool closeDir;
-
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            if (currentThread->currentDirectory != nullptr) {
-                delete currentThread->currentDirectory;
-            }
-            currentThread->currentDirectory = new OpenFile(DIRECTORY_SECTOR);
-            return true;
-        } 
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            return false;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            return false;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
-
-    bool success = true;
-
-    OpenFile  *openDir = nullptr;
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(dirFile);
-    int sector = dir->Find(name);
-    if (sector >= 0) {
-        openDir = new OpenFile(sector);  // `name` was found in directory.
-        if (!openDir->IsDirectory()) {
-            // El archivo no es un directorio; operacion invalida.
-            delete openDir;
-            success = false;
-        }
-    }
-    dirFile->UnlockFile();
-    if (closeDir) {
-        delete dirFile;
-    }
-
-    if (success) {
-        if (currentThread->currentDirectory != nullptr) {
-            delete currentThread->currentDirectory;
-        }
-        currentThread->currentDirectory = openDir;
-    }
-         
-    delete dir;
-    return success;
-}
-
-bool
-FileSystem::ListDirectory(const char* name) {
-    ASSERT(name != nullptr);
-
-    Directory* dir = new Directory(NUM_DIR_ENTRIES);    
-    OpenFile *dirFile;
-    bool closeDir;
-
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            dir->FetchFrom(directoryFile);
-            dir->List();
-            delete dir;
-            return true;
-        } 
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            delete dir;
-            return false;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            delete dir;
-            return false;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
-
-    bool success = true;
-
-    OpenFile *temp;
-    dir->FetchFrom(dirFile);
-    int sector = dir->Find(name);
-    if (sector >= 0) {
-        temp = new OpenFile(sector);  // `name` was found in directory.
-        if (!temp->IsDirectory()) {
-            // El archivo no es un directorio; operacion invalida.
-            success = false;
-        }
-        else {
-            dir->FetchFrom(temp);
-        }
-        delete temp;
-    }
-
-    dirFile->UnlockFile();
-    if (closeDir) {
-        delete dirFile;
-    }
-
-    if (success) {
-        dir->List(); 
-    }
-
-    delete dir;
-    return success;
-}
-
-bool
-FileSystem::RemoveDirectory(const char *name)
-{
-    ASSERT(name != nullptr);
-
-    DEBUG('f', "Removing file %s\n", name);
-
-    OpenFile *dirFile;
-    bool closeDir;
-
-    if (*name == '/' && strchr(name + 1, '/') == nullptr) {
-        name = name + 1;
-        if (*name == '\0') {
-            return false;
-        }
-        dirFile = directoryFile;
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else if (strchr(name, '/') == nullptr) {
-        if (*name == '\0') {
-            return false;
-        }
-        if (currentThread->currentDirectory == nullptr) {
-            dirFile = directoryFile;
-        }
-        else {
-            dirFile = currentThread->currentDirectory;
-        }
-        closeDir = false;
-        dirFile->LockFile();
-    }
-    else {
-        dirFile = OpenDirectory(name);
-        if (dirFile == nullptr) {
-            return false;
-        }
-        closeDir = true;
-        name = strrchr(name, '/') + 1;
-    }
-
-
-    Directory *dir = new Directory(NUM_DIR_ENTRIES);
-    dir->FetchFrom(dirFile);
-    int sector = dir->Find(name);
-    if (sector == -1) {
-        dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
-        }
-        return false;  // file not found
-    }
-
-    DEBUG('f', "Removing file header from sector %d\n", sector);
-
-    FileHeader *fileH = new FileHeader;
-    fileH->FetchFrom(sector);
-
-    if (!fileH->IsDirectory()) {
-        dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
-        }
-        return false;   // no es un directorio
-    }
-
-    if (fileTable->Used(sector)) {
-        dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
-        }
-        return false;   // el directorio esta abierto.
-    }
-
-    OpenFile *subdirFile = new OpenFile(sector);
-    Directory *subdir = new Directory(NUM_DIR_ENTRIES);
-    subdirFile->LockFile();
-    subdir->FetchFrom(subdirFile);
-    bool empty = subdir->Empty();
-    subdirFile->UnlockFile();
-    delete subdirFile;
-    delete subdir;    
-
-    if (!empty) {
-        dirFile->UnlockFile();
-        if (closeDir) {
-            delete dir;
-        }
-        return false;   // el directorio no esta vacio.
-    }
-
-    Bitmap *freeMap = new Bitmap(NUM_SECTORS);
-    // Lock archivo de bitmap.
-    freeMapFile->LockFile();
-    freeMap->FetchFrom(freeMapFile);
-
-    fileH->Deallocate(freeMap);  // Remove data blocks.
-    freeMap->Clear(sector);      // Remove header block.
-    dir->Remove(name);
-
-    dir->WriteBack(dirFile);    // Flush to disk.
-    dirFile->UnlockFile();
-    freeMap->WriteBack(freeMapFile);  // Flush to disk.
-    freeMapFile->UnlockFile();
-
-    delete fileH;
-    if (closeDir) {
-        delete dir;
-    }
-    delete freeMap;
-    return true;
 }
 
 static bool
