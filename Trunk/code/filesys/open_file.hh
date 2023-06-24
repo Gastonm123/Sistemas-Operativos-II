@@ -128,7 +128,8 @@ public:
     // Determina si es un directorio.
     bool IsDirectory() const;
 private:
-    SharedFile *sharedFile; ///< Object shared by all users of the same file.
+    const SharedFile *sharedFile; ///< Object shared by all users of the same
+                                  ///< file.
     unsigned seekPosition;  ///< Current position within the file.
     FileHeader *hdr; ///< File header (i-node).
 };

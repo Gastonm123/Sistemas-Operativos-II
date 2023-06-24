@@ -32,7 +32,7 @@ OpenFile::OpenFile(int sector)
 /// Close a Nachos file, de-allocating any in-memory data structures.
 OpenFile::~OpenFile()
 {
-    fileTable->Close(sharedFile);
+    fileTable->Close(sharedFile->sector);
 }
 
 /// Change the current location within the open file -- the point at which
