@@ -717,7 +717,6 @@ FileSystem::RemoveDirectory(const char *name)
         return false;   // el directorio esta abierto.
     }
 
-    /// ???????????????
     OpenFile *subdirFile = new OpenFile(sector);
     Directory *subdir    = new Directory(NUM_DIR_ENTRIES);
     subdirFile->LockFile();
