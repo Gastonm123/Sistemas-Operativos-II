@@ -63,3 +63,8 @@ FileTable::Close(SharedFile *sharedFile)
         delete sharedFile;
     }
 }
+
+bool
+FileTable::Used(unsigned sector) {
+    return table->Get(sector) != nullptr;
+}

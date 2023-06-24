@@ -188,3 +188,14 @@ Directory::GetRaw() const
 {
     return &raw;
 }
+
+bool
+Directory::Empty() const
+{
+    for (int i = 0; i < raw.tableSize; i++) {
+        if (raw.table[i].inUse) {
+            return false;
+        }
+    }
+    return true;
+}

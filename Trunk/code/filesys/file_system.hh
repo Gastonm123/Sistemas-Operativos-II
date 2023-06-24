@@ -142,6 +142,9 @@ public:
     /// Lista los archivos del directorio.
     bool ListDirectory(const char* name);
 
+    /// Borra el directorio si esta vacio y no esta abierto.
+    bool RemoveDirectory(const char* name);
+
     /// Check the filesystem.
     bool Check();
 

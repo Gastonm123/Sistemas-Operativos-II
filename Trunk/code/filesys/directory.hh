@@ -64,6 +64,9 @@ public:
     /// system at a low level.
     const RawDirectory *GetRaw() const;
 
+    /// Determina si el directorio esta vacio.
+    bool Empty() const;
+
 private:
     /// Find the index into the directory table corresponding to `name`.
     int FindIndex(const char *name);
