@@ -24,47 +24,63 @@ SharedFile::~SharedFile()
 FileTable::FileTable()
 {
     table = new List<SharedFile*>;
+    lock  = new Lock("file table lock");
 }
 
 FileTable::~FileTable()
 {
     delete table;
+    delete lock;
 }
 
-SharedFile*
+const SharedFile*
 FileTable::Open(unsigned sector)
 {
+    lock->Acquire();
     SharedFile *sharedFile = table->Get(sector);
     if (sharedFile == nullptr) {
         sharedFile = new SharedFile(sector);
         table->SortedInsert(sharedFile, sector);
     }
     sharedFile->fileUsers++;
+    lock->Release();
     return sharedFile;
 }
 
 bool
 FileTable::MarkForRemove(unsigned sector)
 {
+    lock->Acquire();
     SharedFile *sharedFile = table->Get(sector);
     if (sharedFile == nullptr) {
+        lock->Release();
         return false;
     }
     sharedFile->removeOnDelete = true;
+    lock->Release();
     return true;
 }
 
 void
-FileTable::Close(SharedFile *sharedFile)
+FileTable::Close(unsigned sector)
 {
-    sharedFile->fileUsers--;
-    if (sharedFile->fileUsers == 0) {
-        table->Remove(sharedFile);
-        delete sharedFile;
+    lock->Acquire();
+    SharedFile *sharedFile = table->Get(sector);
+    if (sharedFile) {
+        sharedFile->fileUsers--;
+        if (sharedFile->fileUsers == 0) {
+            table->Remove(sharedFile);
+            delete sharedFile;
+        }
     }
+    lock->Release();
 }
 
 bool
-FileTable::Used(unsigned sector) {
-    return table->Get(sector) != nullptr;
+FileTable::Used(unsigned sector)
+{
+    lock->Acquire();
+    bool used = table->Get(sector) != nullptr;
+    lock->Release();
+    return used;
 }

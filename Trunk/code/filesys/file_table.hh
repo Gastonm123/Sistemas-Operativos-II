@@ -37,7 +37,7 @@ public:
 
     /// Fetch an existing shared file or append a new one to the table and 
     /// return the reference.
-    SharedFile *Open(unsigned sector);
+    const SharedFile *Open(unsigned sector);
 
     /// Mark a file to be removed after it is closed by all its users.
     /// Return true if the file was marked, false if the file was not in the
@@ -49,9 +49,10 @@ public:
 
     /// Decrease the user count and delete the reference when no one is using
     /// it.
-    void Close(SharedFile *sharedFile);
+    void Close(unsigned sector);
 private:
     List<SharedFile*> *table;
+    Lock *lock; //< Table lock.
 };
 
 #endif

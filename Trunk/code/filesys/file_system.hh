@@ -155,7 +155,7 @@ public:
 private:
     OpenFile *freeMapFile;  ///< Bit map of free disk blocks, represented as a
                             ///< file.
-    OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
+    OpenFile *rootDirFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
     OpenFile *OpenDirectory(const char *path);
 

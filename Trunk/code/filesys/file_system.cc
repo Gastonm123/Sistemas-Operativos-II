@@ -105,8 +105,8 @@ FileSystem::FileSystem(bool format)
         // The file system operations assume these two files are left open
         // while Nachos is running.
 
-        freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
-        directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        freeMapFile = new OpenFile(FREE_MAP_SECTOR);
+        rootDirFile = new OpenFile(DIRECTORY_SECTOR);
 
         // Once we have the files “open”, we can write the initial version of
         // each file back to disk.  The directory at this point is completely
@@ -116,7 +116,7 @@ FileSystem::FileSystem(bool format)
 
         DEBUG('f', "Writing bitmap and directory back to disk.\n");
         freeMap->WriteBack(freeMapFile);     // flush changes to disk
-        dir->WriteBack(directoryFile);
+        dir->WriteBack(rootDirFile);
 
         if (debug.IsEnabled('f')) {
             freeMap->Print();
@@ -131,8 +131,8 @@ FileSystem::FileSystem(bool format)
         // If we are not formatting the disk, just open the files
         // representing the bitmap and directory; these are left open while
         // Nachos is running.
-        freeMapFile   = new OpenFile(FREE_MAP_SECTOR);
-        directoryFile = new OpenFile(DIRECTORY_SECTOR);
+        freeMapFile = new OpenFile(FREE_MAP_SECTOR);
+        rootDirFile = new OpenFile(DIRECTORY_SECTOR);
     }
 
 }
@@ -140,7 +140,7 @@ FileSystem::FileSystem(bool format)
 FileSystem::~FileSystem()
 {
     delete freeMapFile;
-    delete directoryFile;
+    delete rootDirFile;
 }
 
 /// Get current working directory. If there is none, the root directory.
@@ -149,7 +149,7 @@ FileSystem::GetCurrentDir()
 {
     if (currentThread->currentDirectory)
         return currentThread->currentDirectory;
-    return directoryFile;
+    return rootDirFile;
 }
 
 /// Abre el directorio de la direccion dada.
@@ -163,7 +163,7 @@ FileSystem::OpenDirectory(const char *path) {
     OpenFile *dirFile;
 
     if (path[0] == '/') {
-        dirFile = directoryFile;
+        dirFile = rootDirFile;
         path++;
     }
     else {
@@ -337,7 +337,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
     }
     dirFile->UnlockFile();
 
-    if (dirFile != directoryFile &&
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -387,7 +387,7 @@ FileSystem::Open(const char *name)
     }
     dirFile->UnlockFile();
 
-    if (dirFile != directoryFile &&
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -444,6 +444,7 @@ FileSystem::Remove(const char *name)
                 DEBUG('f', "File is being used, removing later.\n");
                 dir->Remove(filename);
                 dir->WriteBack(dirFile);    // Flush to disk.
+                dirFile->UnlockFile();
             }
             else {
                 Bitmap *freeMap = new Bitmap(NUM_SECTORS);
@@ -467,7 +468,11 @@ FileSystem::Remove(const char *name)
         delete fileH;
     }
 
-    if (dirFile != directoryFile &&
+    if (!success) {
+        dirFile->UnlockFile();
+    }
+
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -533,7 +538,7 @@ FileSystem::MakeDirectory(const char *name)
     }
     dirFile->UnlockFile();
 
-    if (dirFile != directoryFile &&
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -581,7 +586,7 @@ FileSystem::ChangeDirectory(const char* name) {
     }
     dirFile->UnlockFile();
 
-    if (dirFile != directoryFile &&
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -640,7 +645,7 @@ FileSystem::ListDirectory(const char* name) {
     }
     dirFile->UnlockFile();
 
-    if (dirFile != directoryFile &&
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -680,7 +685,7 @@ FileSystem::RemoveDirectory(const char *name)
     int sector = dir->Find(filename);
     if (sector == -1) {
         dirFile->UnlockFile();
-        if (dirFile != directoryFile &&
+        if (dirFile != rootDirFile &&
             dirFile != currentThread->currentDirectory) {
             delete dirFile;
         }
@@ -694,7 +699,7 @@ FileSystem::RemoveDirectory(const char *name)
 
     if (!fileH->IsDirectory()) {
         dirFile->UnlockFile();
-        if (dirFile != directoryFile &&
+        if (dirFile != rootDirFile &&
             dirFile != currentThread->currentDirectory) {
             delete dirFile;
         }
@@ -704,7 +709,7 @@ FileSystem::RemoveDirectory(const char *name)
 
     if (fileTable->Used(sector)) {
         dirFile->UnlockFile();
-        if (dirFile != directoryFile &&
+        if (dirFile != rootDirFile &&
             dirFile != currentThread->currentDirectory) {
             delete dirFile;
         }
@@ -712,7 +717,6 @@ FileSystem::RemoveDirectory(const char *name)
         return false;   // el directorio esta abierto.
     }
 
-    /// ???????????????
     OpenFile *subdirFile = new OpenFile(sector);
     Directory *subdir    = new Directory(NUM_DIR_ENTRIES);
     subdirFile->LockFile();
@@ -724,7 +728,7 @@ FileSystem::RemoveDirectory(const char *name)
 
     if (!empty) {
         dirFile->UnlockFile();
-        if (dirFile != directoryFile &&
+        if (dirFile != rootDirFile &&
             dirFile != currentThread->currentDirectory) {
             delete dirFile;
         }
@@ -746,7 +750,7 @@ FileSystem::RemoveDirectory(const char *name)
     freeMap->WriteBack(freeMapFile);  // Flush to disk.
     freeMapFile->UnlockFile();
 
-    if (dirFile != directoryFile &&
+    if (dirFile != rootDirFile &&
         dirFile != currentThread->currentDirectory) {
         delete dirFile;
     }
@@ -785,9 +789,9 @@ FileSystem::List()
 {
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
 
-    directoryFile->LockFile();
-    dir->FetchFrom(directoryFile);
-    directoryFile->UnlockFile();
+    rootDirFile->LockFile();
+    dir->FetchFrom(rootDirFile);
+    rootDirFile->UnlockFile();
     dir->List();
     delete dir;
 }
@@ -972,7 +976,7 @@ FileSystem::Check()
     bool error = false;
 
     freeMapFile->LockFile();
-    directoryFile->LockFile();
+    rootDirFile->LockFile();
 
     Bitmap *shadowMap = new Bitmap(NUM_SECTORS);
     shadowMap->Mark(FREE_MAP_SECTOR);
@@ -1006,7 +1010,7 @@ FileSystem::Check()
     freeMap->FetchFrom(freeMapFile);
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
     const RawDirectory *rdir = dir->GetRaw();
-    dir->FetchFrom(directoryFile);
+    dir->FetchFrom(rootDirFile);
     error |= CheckDirectory(rdir, shadowMap);
     delete dir;
 
@@ -1020,7 +1024,7 @@ FileSystem::Check()
                      : "Filesystem check succeeded.\n");
 
     freeMapFile->UnlockFile();
-    directoryFile->UnlockFile();
+    rootDirFile->UnlockFile();
 
     return !error;
 }
@@ -1085,10 +1089,10 @@ FileSystem::Print(bool recursive)
     freeMap->Print();
 
     printf("--------------------------------\n");
-    directoryFile->LockFile();
-    dir->FetchFrom(directoryFile);
+    rootDirFile->LockFile();
+    dir->FetchFrom(rootDirFile);
     PrintDirectory(dir, recursive);
-    directoryFile->UnlockFile();
+    rootDirFile->UnlockFile();
     printf("--------------------------------\n");
 
     delete bitH;
