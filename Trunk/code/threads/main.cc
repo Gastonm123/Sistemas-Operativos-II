@@ -176,7 +176,10 @@ main(int argc, char **argv)
             fileSystem->List();
             printf("\n");
         } else if (!strcmp(*argv, "-D")) {   // Print entire filesystem.
-            fileSystem->Print();
+            fileSystem->Print(false);
+            printf("\n");
+        } else if (!strcmp(*argv, "-Dr")) {   // Print entire filesystem recursivamente.
+            fileSystem->Print(true);
             printf("\n");
         } else if (!strcmp(*argv, "-c")) {   // Check the filesystem.
             bool result = fileSystem->Check();

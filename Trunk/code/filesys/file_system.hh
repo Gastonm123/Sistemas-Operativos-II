@@ -95,6 +95,7 @@ public:
 #include "directory_entry.hh"
 #include "machine/disk.hh"
 
+class Directory;
 
 /// Initial file sizes for the bitmap and directory; until the file system
 /// supports extensible files, the directory size sets the maximum number of
@@ -145,7 +146,7 @@ public:
     bool Check();
 
     /// List all the files and their contents.
-    void Print();
+    void Print(bool recursive);
 
 private:
     OpenFile *freeMapFile;  ///< Bit map of free disk blocks, represented as a
@@ -153,6 +154,8 @@ private:
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
     OpenFile *OpenDirectory(const char *path);
+
+    void PrintDirectory(Directory *dir, bool recursive);
 };
 
 #endif

@@ -917,7 +917,6 @@ FileSystem::Check()
     DEBUG('f', "Performing filesystem check\n");
     bool error = false;
 
-    // TODO: esta bien esto?
     freeMapFile->LockFile();
     directoryFile->LockFile();
 
@@ -972,6 +971,39 @@ FileSystem::Check()
     return !error;
 }
 
+/// Asume exclusion mutua.
+void
+FileSystem::PrintDirectory(Directory *dir, bool recursive) {
+    dir->Print();
+    if (!recursive) {
+        return;
+    }
+
+    const RawDirectory *rd = dir->GetRaw(); 
+
+    for (unsigned i = 0; i < NUM_DIR_ENTRIES; i++) {
+        const DirectoryEntry *e = &rd->table[i];
+        if (e->inUse) {
+            FileHeader *h = new FileHeader;
+            const RawFileHeader *rh = h->GetRaw();
+            h->FetchFrom(e->sector);
+            if (rh->directory) {
+                Directory *subdir = new Directory(NUM_DIR_ENTRIES);
+                OpenFile *subdirFile = new OpenFile(e->sector);
+                printf("--------------------------------\n");
+                subdirFile->LockFile();
+                subdir->FetchFrom(subdirFile);
+                PrintDirectory(subdir, true); 
+                subdirFile->UnlockFile();
+                printf("--------------------------------\n");
+                delete subdir;
+                delete subdirFile;
+            }
+            delete h;
+        }
+    }
+}
+
 /// Print everything about the file system:
 /// * the contents of the bitmap;
 /// * the contents of the directory;
@@ -979,7 +1011,7 @@ FileSystem::Check()
 ///   * the contents of the file header;
 ///   * the data in the file.
 void
-FileSystem::Print()
+FileSystem::Print(bool recursive)
 {
     FileHeader *bitH    = new FileHeader;
     FileHeader *dirH    = new FileHeader;
@@ -999,8 +1031,10 @@ FileSystem::Print()
     freeMap->Print();
 
     printf("--------------------------------\n");
+    directoryFile->LockFile();
     dir->FetchFrom(directoryFile);
-    dir->Print();
+    PrintDirectory(dir, recursive);
+    directoryFile->UnlockFile();
     printf("--------------------------------\n");
 
     delete bitH;
