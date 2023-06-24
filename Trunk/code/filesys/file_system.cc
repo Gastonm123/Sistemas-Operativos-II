@@ -897,8 +897,10 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
             if (rh->directory) {
                 Directory *dir = new Directory(NUM_DIR_ENTRIES);
                 OpenFile *dirFile = new OpenFile(e->sector);
+                dirFile->LockFile();
                 dir->FetchFrom(dirFile);
                 error |= CheckDirectory(dir->GetRaw(), shadowMap);
+                dirFile->UnlockFile();
                 delete dir;
                 delete dirFile;
             }
