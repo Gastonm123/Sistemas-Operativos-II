@@ -209,6 +209,12 @@ public:
     Table<OpenFile*> *openFiles;
 
 #endif
+
+#ifdef FILESYS
+public:
+    /// Directorio actual (si es nulo entonces es root).
+    OpenFile *currentDirectory;
+#endif
 };
 
 /// Magical machine-dependent routines, defined in `switch.s`.

@@ -75,6 +75,11 @@ Thread::Thread(const char *threadName, bool mustJoin)
     openFiles->Add(nullptr); // registra un dummy STDIN.
     openFiles->Add(nullptr); // registra un dummy STDOUT.
 #endif
+
+#ifdef FILESYS
+    currentDirectory = nullptr;
+#endif
+
     numThreads++;
 }
 

@@ -146,6 +146,7 @@ FILESYS_SRC = filesys/directory.cc   \
               filesys/synch_disk.cc  \
 			  filesys/file_table.cc  \
               filesys/concurrent_test.cc \
+              filesys/directory_test.cc \
               machine/disk.cc
 
 NETWORK_HDR = network/post.hh \

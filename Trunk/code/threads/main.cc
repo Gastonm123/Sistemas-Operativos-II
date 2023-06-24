@@ -95,6 +95,7 @@ void StartProcess(const char *file);
 void ConsoleTest(const char *in, const char *out);
 void MailTest(int networkID);
 void ConcurrentFileSysTest();
+void DirectoryTest();
 
 static inline void
 PrintVersion()
@@ -184,6 +185,8 @@ main(int argc, char **argv)
             PerformanceTest();
         } else if (!strcmp(*argv, "-ct")) {  // Concurrent test.
             ConcurrentFileSysTest();
+        } else if (!strcmp(*argv, "-dt")) {  // Directory test.
+            DirectoryTest();
         }
 #endif
 #ifdef NETWORK

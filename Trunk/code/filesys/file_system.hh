@@ -132,6 +132,15 @@ public:
     /// List all the files in the file system.
     void List();
 
+    /// Crea directorio.
+    bool MakeDirectory(const char *name);
+
+    /// Cambia el directorio actual del thread actual.
+    bool ChangeDirectory(const char* name);
+
+    /// Lista los archivos del directorio.
+    bool ListDirectory(const char* name);
+
     /// Check the filesystem.
     bool Check();
 
@@ -143,6 +152,7 @@ private:
                             ///< file.
     OpenFile *directoryFile;  ///< “Root” directory -- list of file names,
                               ///< represented as a file.
+    OpenFile *OpenDirectory(const char *path);
 };
 
 #endif
