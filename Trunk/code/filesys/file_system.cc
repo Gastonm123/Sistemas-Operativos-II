@@ -527,12 +527,16 @@ void FileSystem::Liberate(unsigned sector)
     fileH->FetchFrom(sector);
 
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+    freeMapFile->LockFile();
     freeMap->FetchFrom(freeMapFile);
+    freeMapFile->UnlockFile();
 
     fileH->Deallocate(freeMap);  // Remove data blocks.
     freeMap->Clear(sector);      // Remove header block.
 
+    freeMapFile->LockFile();
     freeMap->WriteBack(freeMapFile);
+    freeMapFile->UnlockFile();
     delete freeMap;
     delete fileH;
 }
@@ -543,7 +547,9 @@ FileSystem::List()
 {
     Directory *dir = new Directory(NUM_DIR_ENTRIES);
 
+    directoryFile->LockFile();
     dir->FetchFrom(directoryFile);
+    directoryFile->UnlockFile();
     dir->List();
     delete dir;
 }

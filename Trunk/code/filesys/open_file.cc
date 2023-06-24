@@ -107,8 +107,27 @@ OpenFile::Write(const char *into, unsigned numBytes)
 int
 OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
 {
+	LockFile();
+	int result = ReadAtUnlocked(into, numBytes, position);
+	UnlockFile();
+	return result;
+}
+
+int
+OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
+{
+	LockFile();
+	int result = WriteAtUnlocked(from, numBytes, position);
+	UnlockFile();
+	return result;
+}
+
+int
+OpenFile::ReadAtUnlocked(char *into, unsigned numBytes, unsigned position)
+{
     ASSERT(into != nullptr);
     ASSERT(numBytes > 0);
+    ASSERT(Locked());
 
     unsigned fileLength = hdr->FileLength();
     unsigned firstSector, lastSector, numSectors;
@@ -127,20 +146,11 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
     lastSector = DivRoundDown(position + numBytes - 1, SECTOR_SIZE);
     numSectors = 1 + lastSector - firstSector;
 
-    bool alreadyLocked = Locked();
-    if (!alreadyLocked) {
-        LockFile();
-    }
-
     // Read in all the full and partial sectors that we need.
     buf = new char [numSectors * SECTOR_SIZE];
     for (unsigned i = firstSector; i <= lastSector; i++) {
         synchDisk->ReadSector(hdr->ByteToSector(i * SECTOR_SIZE),
                               &buf[(i - firstSector) * SECTOR_SIZE]);
-    }
-
-    if (!alreadyLocked) {
-        UnlockFile();
     }
 
     // Copy the part we want.
@@ -149,11 +159,13 @@ OpenFile::ReadAt(char *into, unsigned numBytes, unsigned position)
     return numBytes;
 }
 
+
 int
-OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
+OpenFile::WriteAtUnlocked(const char *from, unsigned numBytes, unsigned position)
 {
     ASSERT(from != nullptr);
     ASSERT(numBytes > 0);
+    ASSERT(Locked());
 
     unsigned fileLength = hdr->FileLength();
     unsigned firstSector, lastSector, numSectors;
@@ -178,17 +190,12 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
     firstAligned = position == firstSector * SECTOR_SIZE;
     lastAligned  = position + numBytes == (lastSector + 1) * SECTOR_SIZE;
 
-    bool alreadyLocked = Locked();
-    if (!alreadyLocked) {
-        LockFile();
-    }
-
     // Read in first and last sector, if they are to be partially modified.
     if (!firstAligned) {
-        ReadAt(buf, SECTOR_SIZE, firstSector * SECTOR_SIZE);
+        ReadAtUnlocked(buf, SECTOR_SIZE, firstSector * SECTOR_SIZE);
     }
     if (!lastAligned && (firstSector != lastSector || firstAligned)) {
-        ReadAt(&buf[(lastSector - firstSector) * SECTOR_SIZE],
+        ReadAtUnlocked(&buf[(lastSector - firstSector) * SECTOR_SIZE],
                SECTOR_SIZE, lastSector * SECTOR_SIZE);
     }
 
@@ -200,10 +207,6 @@ OpenFile::WriteAt(const char *from, unsigned numBytes, unsigned position)
         DEBUG('f', "Writing to sector %u.\n", hdr->ByteToSector(i * SECTOR_SIZE));
         synchDisk->WriteSector(hdr->ByteToSector(i * SECTOR_SIZE),
                                &buf[(i - firstSector) * SECTOR_SIZE]);
-    }
-
-    if (!alreadyLocked) {
-        UnlockFile();
     }
 
     delete [] buf;

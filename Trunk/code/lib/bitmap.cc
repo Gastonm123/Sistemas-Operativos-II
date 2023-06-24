@@ -134,7 +134,7 @@ void
 Bitmap::FetchFrom(OpenFile *file)
 {
     ASSERT(file != nullptr);
-    file->ReadAt((char *) map, numWords * sizeof (unsigned), 0);
+    file->ReadAtUnlocked((char *) map, numWords * sizeof (unsigned), 0);
 }
 
 /// Store the contents of a bitmap to a Nachos file.
@@ -146,6 +146,6 @@ void
 Bitmap::WriteBack(OpenFile *file) const
 {
     ASSERT(file != nullptr);
-    file->WriteAt((char *) map, numWords * sizeof (unsigned), 0);
+    file->WriteAtUnlocked((char *) map, numWords * sizeof (unsigned), 0);
 }
 #endif

@@ -57,7 +57,7 @@ void
 Directory::FetchFrom(OpenFile *file)
 {
     ASSERT(file != nullptr);
-    file->ReadAt((char *) raw.table,
+    file->ReadAtUnlocked((char *) raw.table,
                  raw.tableSize * sizeof (DirectoryEntry), 0);
 }
 
@@ -68,7 +68,7 @@ void
 Directory::WriteBack(OpenFile *file)
 {
     ASSERT(file != nullptr);
-    file->WriteAt((char *) raw.table,
+    file->WriteAtUnlocked((char *) raw.table,
                   raw.tableSize * sizeof (DirectoryEntry), 0);
 }
 
