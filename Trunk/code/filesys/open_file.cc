@@ -220,10 +220,12 @@ OpenFile::Length() const
 void
 OpenFile::LockFile() {
     sharedFile->fileLock->Acquire();
+    DEBUG('l', "Archivo %d lockeado\n", sharedFile->sector);
 }
 
 void
 OpenFile::UnlockFile() {
+    DEBUG('l', "Archivo %d deslockeado\n", sharedFile->sector);
     sharedFile->fileLock->Release();
 }
 
