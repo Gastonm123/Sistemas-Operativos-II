@@ -156,9 +156,15 @@ SynchDisk::ReadSector(int sectorNumber, char *data)
     }
     cacheLock->Release();
 
-    lock->Acquire();  // Only one disk I/O at a time.
+    char *next = nullptr;
+    lock->Acquire();
     disk->ReadRequest(sectorNumber, data);
     semaphore->P();   // Wait for interrupt.
+    if ((unsigned) sectorNumber < NUM_SECTORS-1 && !nextIsCached) {
+        next = new char[SECTOR_SIZE];
+        disk->ReadRequest(sectorNumber+1, next); // Read ahead.
+        semaphore->P();   // Wait for interrupt.
+    }
     lock->Release();
 
     cacheLock->Acquire();
@@ -167,27 +173,17 @@ SynchDisk::ReadSector(int sectorNumber, char *data)
     cache[entry].use = true;
     cache[entry].valid = true;
     memcpy(cache[entry].data, data, SECTOR_SIZE);
-    cacheLock->Release();
 
-    // Read ahead.
     // Cache the next block.
-    if ((unsigned) sectorNumber < NUM_SECTORS-1 && !nextIsCached) {
-        char *next = new char[SECTOR_SIZE];
-
-        lock->Acquire();
-        disk->ReadRequest(sectorNumber+1, next);
-        semaphore->P();   // Wait for interrupt.
-        lock->Release();
-
-        cacheLock->Acquire();
+    if (next) {
         entry = ReclaimCache();
         cache[entry].sector = sectorNumber+1;
         cache[entry].use = true;
         cache[entry].valid = true;
         memcpy(cache[entry].data, next, SECTOR_SIZE);
-        cacheLock->Release();
         delete next;
     }
+    cacheLock->Release();
 }
 
 /// Write the contents of a buffer into a disk sector.  Return only
