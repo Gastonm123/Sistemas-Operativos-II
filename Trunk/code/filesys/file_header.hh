@@ -38,6 +38,10 @@ public:
     /// file data.
     bool Allocate(Bitmap *bitMap, unsigned fileSize, bool directory);
 
+    /// Allocate enough space on disk to store `newSize` bytes, and update the
+    /// file header accordingly.
+    bool Extend(Bitmap* freeMap, unsigned newSize);
+
     /// De-allocate this file's data blocks.
     void Deallocate(Bitmap *bitMap);
 
@@ -67,6 +71,11 @@ public:
     bool IsDirectory() const;
 
 private:
+
+    void AllocateOneMoreSector(Bitmap* freeMap);
+
+    unsigned ComputeTotalNumberOfSectors(unsigned numBytes);
+
     RawFileHeader raw;
 };
 

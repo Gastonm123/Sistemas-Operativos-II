@@ -125,6 +125,145 @@ FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, bool directory)
     return true;
 }
 
+
+/// Allocate enough disk space for the given file and update the header
+///
+/// * `freeMap` is the bit map of free disk sectors.
+/// * `newSize` is the new size
+bool
+FileHeader::Extend(Bitmap* freeMap, unsigned newSize)
+{
+    if (newSize <= raw.numBytes) {
+        // TODO: Por que razon alguien pediria esto? Podria ser un assert.
+        return true;
+    }
+
+    if (newSize > MAX_FILE_SIZE) {
+        return false;
+    }
+
+    unsigned oldRealNumberOfSectors = ComputeTotalNumberOfSectors(raw.numBytes);
+    unsigned newRealNumberOfSectors = ComputeTotalNumberOfSectors(newSize);
+
+    unsigned neededFreeSectors = newRealNumberOfSectors - oldRealNumberOfSectors;
+    if (freeMap->CountClear() < neededFreeSectors) {
+        return false;
+    }
+
+    unsigned sectorsUsedForData = DivRoundUp(newSize, SECTOR_SIZE);
+    while (raw.numSectors < sectorsUsedForData) {
+        AllocateOneMoreSector(freeMap);
+    }
+    raw.numBytes = newSize;
+
+    return true;
+}
+
+/// Allocate one sector, updating data structures accordingly
+///
+/// * `freeMap` is the bit map of free disk sectors.
+void
+FileHeader::AllocateOneMoreSector(Bitmap* freeMap)
+{
+    ASSERT(freeMap != nullptr);
+
+    // TODO: esto es horriblemente ineficiente.
+
+    if (raw.numSectors < NUM_DIRECT) {
+        unsigned sector = freeMap->Find();
+        unsigned id = raw.numSectors;
+        raw.dataSectors[id] = sector;
+        raw.numSectors += 1;
+        return;
+    }
+
+    if (raw.numSectors < NUM_DIRECT + NUM_DATAPTR) {
+        unsigned sector = freeMap->Find();
+        unsigned id = raw.numSectors - NUM_DIRECT;
+
+        // primer entrada indirecta, todavia no hay dataPtr
+        if (id == 0) {
+            raw.dataPtr = freeMap->Find();
+        }
+
+        raw.numSectors += 1;
+
+        unsigned dataPtr = raw.dataPtr;
+        unsigned* dataPtrBuf = new unsigned[NUM_DATAPTR];
+        synchDisk->ReadSector(dataPtr, (char*) dataPtrBuf);
+
+        dataPtrBuf[id] = sector;
+
+        synchDisk->WriteSector(dataPtr, (char*) dataPtrBuf);
+
+        delete dataPtrBuf;
+        return;
+    }
+
+    if (raw.numSectors < NUM_DATAPTR + NUM_DATAPTR + NUM_DATAPTRPTR) {
+        unsigned sector = freeMap->Find();
+        unsigned id = raw.numSectors - NUM_DIRECT - NUM_DATAPTR;
+
+        // primer entrada en la dataPtrPtr, todavia no fue allocada
+        if (id == 0) {
+            raw.dataPtrPtr = freeMap->Find();
+        }
+
+        unsigned dataPtrPtr = raw.dataPtrPtr;
+        unsigned* dataPtrPtrBuf = new unsigned[NUM_DATAPTR];
+        synchDisk->ReadSector(dataPtrPtr, (char*) dataPtrPtrBuf);
+
+        unsigned upperId = id / NUM_DATAPTR;
+        unsigned lowerId = id % NUM_DATAPTR;
+
+        // primer entrada en esta sub-tabla, todavia no fue allocada
+        if (lowerId == 0) {
+            dataPtrPtrBuf[upperId] = freeMap->Find();
+            synchDisk->WriteSector(dataPtrPtr, (char*) dataPtrPtrBuf);
+        }
+
+        unsigned dataPtr = dataPtrPtrBuf[upperId];
+        unsigned* dataPtrBuf = new unsigned[NUM_DATAPTR];
+        synchDisk->ReadSector(dataPtr, (char*) dataPtrBuf);
+
+        dataPtrBuf[lowerId] = sector;
+        synchDisk->WriteSector(dataPtr, (char*) dataPtrBuf);
+
+        raw.numSectors += 1;
+
+        delete dataPtrBuf;
+        delete dataPtrPtrBuf;
+        return;
+    }
+
+    // Se está intentando superar el maximo tamaño del FS.
+    ASSERT(false);
+}
+
+/// Compute number of sectors, including dataPtr and dataPtrPtr tables
+unsigned
+FileHeader::ComputeTotalNumberOfSectors(unsigned numBytes)
+{
+
+    unsigned sectorsUsedForData = DivRoundUp(numBytes, SECTOR_SIZE);
+
+    bool hasDataPtr = sectorsUsedForData > NUM_DIRECT;
+    if (!hasDataPtr) {
+        return sectorsUsedForData;
+    }
+
+    unsigned sectorsUsedForPointersToData = DivRoundUp(sectorsUsedForData, NUM_DATAPTR);
+
+    bool hasDataPtrPtr = sectorsUsedForPointersToData > 1;
+    if (!hasDataPtrPtr) {
+        return sectorsUsedForData + sectorsUsedForPointersToData;
+    }
+
+    unsigned sectorsUsedForPointersToPointers = 1;
+
+    return sectorsUsedForData + sectorsUsedForPointersToData + sectorsUsedForPointersToPointers;
+}
+
 /// De-allocate all the space allocated for data blocks for this file.
 ///
 /// * `freeMap` is the bit map of free disk sectors.
