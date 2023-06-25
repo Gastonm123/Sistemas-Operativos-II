@@ -53,8 +53,9 @@
 /// * `-D`  -- prints the contents of the entire file system.
 /// * `-c`  -- checks the filesystem integrity.
 /// * `-tf` -- tests the performance of the Nachos file system.
-/// * `-cf` -- tests concurrent operation of the file system.
-/// * `-df` -- tests nested directories in the file system.
+/// * `-ct` -- tests concurrent operation of the file system.
+/// * `-dt` -- tests nested directories in the file system.
+/// * `-et` -- tests extensible files in the file system.
 ///
 /// *NETWORK* options
 /// -----------------
@@ -98,6 +99,7 @@ void ConsoleTest(const char *in, const char *out);
 void MailTest(int networkID);
 void ConcurrentFileSysTest();
 void DirectoryTest();
+void ExtensibleFileTest();
 
 static inline void
 PrintVersion()
@@ -192,6 +194,8 @@ main(int argc, char **argv)
             ConcurrentFileSysTest();
         } else if (!strcmp(*argv, "-dt")) {  // Directory test.
             DirectoryTest();
+        } else if (!strcmp(*argv, "-et")) {  // Directory test.
+            ExtensibleFileTest();
         }
 #endif
 #ifdef NETWORK
