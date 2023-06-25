@@ -176,7 +176,12 @@ OpenFile::WriteAtUnlocked(const char *from, unsigned numBytes, unsigned position
         return 0;  // Check request.
     }
     if (position + numBytes > fileLength) {
-        numBytes = fileLength - position;
+        if (!fileSystem->ExtendFile(this, this->hdr, position + numBytes)) {
+            // not enough space.
+            return 0;
+        }
+
+        fileLength = hdr->FileLength();
     }
     DEBUG('f', "Writing %u bytes at %u, from file of length %u.\n",
           numBytes, position, fileLength);

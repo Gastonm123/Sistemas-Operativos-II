@@ -130,6 +130,9 @@ public:
     /// Liberate a file's blocks after it is no longer used.
     void Liberate(unsigned sector);
 
+    /// Make a file bigger
+    bool ExtendFile(OpenFile* file, FileHeader* fileH, unsigned newSize);
+
     /// List all the files in the file system.
     /// * DEPRECATED *
     void List();

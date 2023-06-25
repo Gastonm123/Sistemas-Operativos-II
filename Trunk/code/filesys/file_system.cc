@@ -782,6 +782,31 @@ void FileSystem::Liberate(unsigned sector)
     delete fileH;
 }
 
+
+bool
+FileSystem::ExtendFile(OpenFile* file, FileHeader* fileH, unsigned newSize)
+{
+    ASSERT(file != nullptr);
+    ASSERT(fileH != nullptr);
+    ASSERT(file->Locked());
+
+    Bitmap *freeMap = new Bitmap(NUM_SECTORS);
+
+    freeMapFile->LockFile();
+    freeMap->FetchFrom(freeMapFile);
+
+    bool result = fileH->Extend(freeMap, newSize);
+
+    fileH->WriteBack(fileH->GetSector());
+
+    freeMap->WriteBack(freeMapFile);
+    freeMapFile->UnlockFile();
+
+    delete freeMap;
+
+    return result;
+}
+
 /// List all the files in the file system directory.
 /// * DEPRECATED *
 void
