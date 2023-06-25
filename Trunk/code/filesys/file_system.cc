@@ -646,7 +646,9 @@ FileSystem::ListDirectory(const char* name) {
             success = false;
         }
         else {
+            file->LockFile();
             dir->FetchFrom(file);
+            file->UnlockFile();
         }
         delete file;
     }
