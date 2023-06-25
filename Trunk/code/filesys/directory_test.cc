@@ -14,6 +14,11 @@ Spam(void *dummy)
         sprintf(name, "spam%d", (*offset)*10+i);
         fileSystem->Create(name, 10);
     }
+    for (int i = 0; i < 10; i++) {
+        char name[10];
+        sprintf(name, "spam%d", (*offset)*10+i);
+        fileSystem->Remove(name);
+    }
 }
 
 /// Script para testear espacio jerarquico del sistema de archivos.
@@ -50,6 +55,10 @@ void DirectoryTest()
     ASSERT(fileSystem->ListDirectory("/new_dir"));
 
     delete file;
+    ASSERT(fileSystem->Remove("/new_dir/sub_dir/new_file"));
+    ASSERT(fileSystem->ChangeDirectory("/"));
+    ASSERT(fileSystem->RemoveDirectory("/new_dir/sub_dir"));
+    ASSERT(fileSystem->RemoveDirectory("/new_dir"));
 
     printf("Test de contencion iniciando.\n");
     /// Test de contencion de locks para el directorio raiz.

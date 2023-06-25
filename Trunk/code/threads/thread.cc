@@ -107,16 +107,8 @@ Thread::~Thread()
                                        STACK_SIZE * sizeof *stack);
     }
 #ifdef USER_PROGRAM
-    threadMap->Remove(tid);
     delete space;
     delete joinChannel;
-    // Cerrar archivos abiertos.
-    for (unsigned fd = 0; fd < openFiles->SIZE; fd++) {
-        OpenFile *file = openFiles->Get(fd);
-        if (file) {
-            delete file;
-        }
-    }
     delete openFiles;
 #endif
 }
@@ -215,8 +207,21 @@ Thread::Finish()
 
     interrupt->SetLevel(INT_OFF);
     ASSERT(this == currentThread);
-
     DEBUG('t', "Finishing thread \"%s\"\n", GetName());
+
+    threadMap->Remove(tid);
+    openFiles->Remove(0); // remove STDIN.
+    openFiles->Remove(1); // remove STDOUT.
+    if (!openFiles->IsEmpty()) {
+        DEBUG('t', "Codigo de kernel se dejo archivos abiertos.\n");
+        // Cerrar archivos abiertos.
+        for (unsigned fd = 2; fd < openFiles->SIZE; fd++) {
+            OpenFile *file = openFiles->Get(fd);
+            if (file) {
+                delete file;
+            }
+        }
+    }
 
     /// La consola de Nachos va a crear un loop perpetuo si no halteamos la
     /// maquina.
@@ -406,8 +411,18 @@ Thread::Exit(int exitStatus)
 
     ASSERT(this == currentThread);
     ASSERT(space != nullptr);
-
     DEBUG('t', "Thread `%s` exits with code %d.\n", name, exitStatus);
+
+    threadMap->Remove(tid);
+    openFiles->Remove(0); // cerrar STDIN.
+    openFiles->Remove(1); // cerrar STDOUT.
+    // Cerrar archivos abiertos por el usuario.
+    for (unsigned fd = 2; fd < openFiles->SIZE; fd++) {
+        OpenFile *file = openFiles->Get(fd);
+        if (file) {
+            delete file;
+        }
+    }
 
     /// La consola de Nachos va a crear un loop perpetuo si no halteamos la
     /// maquina.

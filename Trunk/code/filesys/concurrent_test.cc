@@ -19,6 +19,7 @@ Produce(void *dummy)
         printf("Wrote %d\n", i);
         currentThread->Yield();
     }
+    delete file;
 }
 
 void
@@ -34,6 +35,7 @@ Consume(void *dummy)
         printf("Read %s\n", contents);
         currentThread->Yield();
     }
+    delete file;
 }
 
 void ConcurrentFileSysTest()

@@ -38,5 +38,8 @@ void ExtensibleFileTest()
 
     printf("Read %s\n", dst_buffer);
 
+    delete file;
+    ASSERT(fileSystem->Remove("pepe"));
+
     currentThread->Finish();
 }

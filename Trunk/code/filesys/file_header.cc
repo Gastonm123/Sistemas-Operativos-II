@@ -29,6 +29,14 @@
 #include <ctype.h>
 #include <stdio.h>
 
+/// Clear a sector. Required for data sectors.
+void
+FileHeader::ClearSector(unsigned sector)
+{
+    char zeros[SECTOR_SIZE] = {};
+    synchDisk->WriteSector(sector, zeros);
+}
+
 /// Initialize a fresh file header for a newly created file.  Allocate data
 /// blocks for the file out of the map of free disk blocks.  Return false if
 /// there are not enough free blocks to accomodate the new file.
@@ -80,6 +88,7 @@ FileHeader::Allocate(unsigned headerSector, Bitmap *freeMap, unsigned fileSize, 
     unsigned remaining = raw.numSectors;
     for (unsigned i = 0; remaining > 0 && i < NUM_DIRECT; i++) {
         raw.dataSectors[i] = freeMap->Find();
+        ClearSector(raw.dataSectors[i]);
         remaining--;
     }
 
@@ -87,6 +96,7 @@ FileHeader::Allocate(unsigned headerSector, Bitmap *freeMap, unsigned fileSize, 
         unsigned *dataPtrBuf = new unsigned[NUM_DATAPTR];
         for (unsigned i = 0; remaining > 0 && i < NUM_DATAPTR; i++) {
             dataPtrBuf[i] = freeMap->Find();
+            ClearSector(dataPtrBuf[i]);
             remaining--;
         }
         synchDisk->WriteSector(raw.dataPtr, (char*) dataPtrBuf);
@@ -100,6 +110,7 @@ FileHeader::Allocate(unsigned headerSector, Bitmap *freeMap, unsigned fileSize, 
         unsigned c = 0;      //< contents in dataPtrBuf.
         for (; remaining > 0; remaining--) {
             dataPtrBuf[c] = freeMap->Find();
+            ClearSector(dataPtrBuf[c]);
 
             if (++c == NUM_DATAPTR) {
                 synchDisk->WriteSector(dataPtrList[sector], (char*) dataPtrBuf);
@@ -164,6 +175,7 @@ FileHeader::AllocateOneMoreSector(Bitmap* freeMap)
 
     if (raw.numSectors < NUM_DIRECT) {
         unsigned sector = freeMap->Find();
+        ClearSector(sector);
         unsigned id = raw.numSectors;
         raw.dataSectors[id] = sector;
         raw.numSectors += 1;
@@ -172,6 +184,7 @@ FileHeader::AllocateOneMoreSector(Bitmap* freeMap)
 
     if (raw.numSectors < NUM_DIRECT + NUM_DATAPTR) {
         unsigned sector = freeMap->Find();
+        ClearSector(sector);
         unsigned id = raw.numSectors - NUM_DIRECT;
 
         // primer entrada indirecta, todavia no hay dataPtr
@@ -195,6 +208,7 @@ FileHeader::AllocateOneMoreSector(Bitmap* freeMap)
 
     if (raw.numSectors < NUM_DATAPTR + NUM_DATAPTR + NUM_DATAPTRPTR) {
         unsigned sector = freeMap->Find();
+        ClearSector(sector);
         unsigned id = raw.numSectors - NUM_DIRECT - NUM_DATAPTR;
 
         // primer entrada en la dataPtrPtr, todavia no fue allocada

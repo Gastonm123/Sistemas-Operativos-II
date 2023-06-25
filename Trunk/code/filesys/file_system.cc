@@ -550,6 +550,7 @@ FileSystem::MakeDirectory(const char *name)
                 file->UnlockFile();
                 freeMap->WriteBack(freeMapFile);
                 dir->WriteBack(dirFile);
+                delete file;
             } else {
                 delete h;
             }

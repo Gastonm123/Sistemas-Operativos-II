@@ -84,3 +84,22 @@ FileTable::Used(unsigned sector)
     lock->Release();
     return used;
 }
+
+void
+SharedFilePrint(SharedFile *sharedFile)
+{
+    printf("Open file:\n");
+    printf("    sector: %d, users: %d, lock: %d\n"
+           "    markForRemove: %d\n", sharedFile->sector, sharedFile->fileUsers,
+           sharedFile->fileLock->IsHeldByCurrentThread(),
+           sharedFile->removeOnDelete);
+}
+
+void
+FileTable::Print()
+{
+    lock->Acquire();
+    printf("File table contents:\n");
+    table->Apply(SharedFilePrint);
+    lock->Release();
+}

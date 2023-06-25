@@ -50,6 +50,9 @@ public:
     /// Decrease the user count and delete the reference when no one is using
     /// it.
     void Close(unsigned sector);
+
+    void Print();
+
 private:
     List<SharedFile*> *table;
     Lock *lock; //< Table lock.

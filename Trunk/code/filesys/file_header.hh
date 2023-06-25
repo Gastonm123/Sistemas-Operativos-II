@@ -80,6 +80,9 @@ private:
     unsigned ComputeNumberOfIndirectSectors(unsigned numDataSectors);
     unsigned ComputeNumberOfDataSectors(unsigned numBytes);
 
+    /// Clear a sector. Required for data sectors.
+    void ClearSector(unsigned sector);
+
     unsigned sectorNumber;
 
     RawFileHeader raw;

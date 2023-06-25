@@ -280,6 +280,8 @@ Cleanup()
 {
     DEBUG('i', "Cleaning up...\n");
 
+    fileTable->Print();
+
     // 2007, Jose Miguel Santos Espino
     delete preemptiveScheduler;
 
