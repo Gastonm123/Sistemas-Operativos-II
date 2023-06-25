@@ -89,8 +89,8 @@ FileSystem::FileSystem(bool format)
         // Second, allocate space for the data blocks containing the contents
         // of the directory and bitmap files.  There better be enough space!
 
-        ASSERT(mapH->Allocate(freeMap, FREE_MAP_FILE_SIZE, false));
-        ASSERT(dirH->Allocate(freeMap, DIRECTORY_FILE_SIZE, true));
+        ASSERT(mapH->Allocate(FREE_MAP_SECTOR, freeMap, FREE_MAP_FILE_SIZE, false));
+        ASSERT(dirH->Allocate(DIRECTORY_SECTOR, freeMap, DIRECTORY_FILE_SIZE, true));
 
         // Flush the bitmap and directory `FileHeader`s back to disk.
         // We need to do this before we can `Open` the file, since open reads
@@ -322,7 +322,7 @@ FileSystem::Create(const char *name, unsigned initialSize)
             success = false;  // No space in directory.
         } else {
             FileHeader *h = new FileHeader;
-            success = h->Allocate(freeMap, initialSize, false);
+            success = h->Allocate(sector, freeMap, initialSize, false);
             // Fails if no space on disk for data.
             if (success) {
                 // Everything worked, flush all changes back to disk.
@@ -523,7 +523,7 @@ FileSystem::MakeDirectory(const char *name)
         } else {
             FileHeader *h = new FileHeader;
             unsigned size = sizeof (DirectoryEntry) * NUM_DIR_ENTRIES;
-            success = h->Allocate(freeMap, size, true);
+            success = h->Allocate(sector, freeMap, size, true);
             // Fails if no space on disk for data.
             if (success) {
                 // Everything worked, flush all changes back to disk.

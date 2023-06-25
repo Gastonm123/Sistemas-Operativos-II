@@ -36,7 +36,7 @@ public:
 
     /// Initialize a file header, including allocating space on disk for the
     /// file data.
-    bool Allocate(Bitmap *bitMap, unsigned fileSize, bool directory);
+    bool Allocate(unsigned sectorNumber, Bitmap *bitMap, unsigned fileSize, bool directory);
 
     /// Allocate enough space on disk to store `newSize` bytes, and update the
     /// file header accordingly.
@@ -70,11 +70,15 @@ public:
     /// Determina si es un directorio.
     bool IsDirectory() const;
 
+    unsigned GetSector() const;
+
 private:
 
     void AllocateOneMoreSector(Bitmap* freeMap);
 
     unsigned ComputeTotalNumberOfSectors(unsigned numBytes);
+
+    unsigned sectorNumber;
 
     RawFileHeader raw;
 };

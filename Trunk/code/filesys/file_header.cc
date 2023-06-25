@@ -36,9 +36,10 @@
 /// * `freeMap` is the bit map of free disk sectors.
 /// * `fileSize` is the bit map of free disk sectors.
 bool
-FileHeader::Allocate(Bitmap *freeMap, unsigned fileSize, bool directory)
+FileHeader::Allocate(unsigned headerSector, Bitmap *freeMap, unsigned fileSize, bool directory)
 {
     ASSERT(freeMap != nullptr);
+    sectorNumber = headerSector;
 
     if (fileSize > MAX_FILE_SIZE) {
         return false;
@@ -350,6 +351,7 @@ FileHeader::Deallocate(Bitmap *freeMap)
 void
 FileHeader::FetchFrom(unsigned sector)
 {
+    sectorNumber = sector;
     synchDisk->ReadSector(sector, (char *) &raw);
 }
 
@@ -359,6 +361,7 @@ FileHeader::FetchFrom(unsigned sector)
 void
 FileHeader::WriteBack(unsigned sector)
 {
+    ASSERT(sector == sectorNumber);
     synchDisk->WriteSector(sector, (char *) &raw);
 }
 
@@ -454,4 +457,10 @@ FileHeader::GetRaw() const
 bool
 FileHeader::IsDirectory() const{
     return raw.directory;
+}
+
+unsigned
+FileHeader::GetSector() const
+{
+    return sectorNumber;
 }
