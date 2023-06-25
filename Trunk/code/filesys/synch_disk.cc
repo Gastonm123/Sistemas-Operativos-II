@@ -41,27 +41,36 @@ SynchDisk::SynchDisk(const char *name)
     disk      = new Disk(name, DiskRequestDone, this);
     cache     = new DiskCache[CACHE_SIZE];
     writeQ    = new List<DiskCache*>;
-    cacheLock = new Lock("synch disk cache lock");
     memset(cache, 0, sizeof(DiskCache) * CACHE_SIZE);
     victim = 0;
     numCachedWrites = 0;
+}
+
+/// De-allocate data structures needed for the synchronous disk abstraction.
+SynchDisk::~SynchDisk()
+{
+    delete disk;
+    delete lock;
+    delete semaphore;
+    delete [] cache;
+    delete writeQ;
 }
 
 /// Flush all cached writes.
 void
 SynchDisk::FlushCache()
 {
+    lock->Acquire();
     while (!writeQ->IsEmpty()) {
         DiskCache *write = writeQ->Pop();
         numCachedWrites--;
-        lock->Acquire();
         disk->WriteRequest(write->sector, write->data);
         semaphore->P();
-        lock->Release();
         write->valid = false;
         write->use   = false;
         write->dirty = false;
     }
+    lock->Release();
 }
 
 #include <ctype.h>
@@ -69,6 +78,7 @@ SynchDisk::FlushCache()
 void
 SynchDisk::PrintCache()
 {
+    lock->Acquire();
     printf("Cache contents:\n");
     for (unsigned i = 0; i < CACHE_SIZE; i++) {
         if (cache[i].valid) {
@@ -85,30 +95,19 @@ SynchDisk::PrintCache()
             printf("\n");
         }
     }
-}
-
-/// De-allocate data structures needed for the synchronous disk abstraction.
-SynchDisk::~SynchDisk()
-{
-    delete disk;
-    delete lock;
-    delete semaphore;
-    delete [] cache;
-    delete writeQ;
-    delete cacheLock;
+    lock->Release();
 }
 
 /// Find an entry that is suitable to be overwritten by some other data.
+/// NOTICE: esta funcion no es reentrante asi que debe tomarse el lock antes de llamarla.
 unsigned
 SynchDisk::ReclaimCache()
 {
     if (numCachedWrites > WRITEQ_SIZE) {
         DiskCache *write = writeQ->Pop();
         numCachedWrites--;
-        lock->Acquire();
         disk->WriteRequest(write->sector, write->data);
         semaphore->P();
-        lock->Release();
         write->dirty = false;
         return (write - cache);
     }
@@ -139,14 +138,14 @@ SynchDisk::ReadSector(int sectorNumber, char *data)
 {
     ASSERT(data != nullptr);
 
+    lock->Acquire();
     bool nextIsCached = false;
-    cacheLock->Acquire();
     for (unsigned i = 0; i < CACHE_SIZE; i++) {
         if (cache[i].valid) {
             if (cache[i].sector == sectorNumber) {
                 memcpy(data, cache[i].data, SECTOR_SIZE);
                 cache[i].use = true;
-                cacheLock->Release();
+                lock->Release();
                 return;
             }
             if (cache[i].sector == sectorNumber+1) {
@@ -154,10 +153,8 @@ SynchDisk::ReadSector(int sectorNumber, char *data)
             }
         }
     }
-    cacheLock->Release();
 
     char *next = nullptr;
-    lock->Acquire();
     disk->ReadRequest(sectorNumber, data);
     semaphore->P();   // Wait for interrupt.
     if ((unsigned) sectorNumber < NUM_SECTORS-1 && !nextIsCached) {
@@ -165,9 +162,7 @@ SynchDisk::ReadSector(int sectorNumber, char *data)
         disk->ReadRequest(sectorNumber+1, next); // Read ahead.
         semaphore->P();   // Wait for interrupt.
     }
-    lock->Release();
 
-    cacheLock->Acquire();
     unsigned entry = ReclaimCache();
     cache[entry].sector = sectorNumber;
     cache[entry].use = true;
@@ -183,7 +178,7 @@ SynchDisk::ReadSector(int sectorNumber, char *data)
         memcpy(cache[entry].data, next, SECTOR_SIZE);
         delete next;
     }
-    cacheLock->Release();
+    lock->Release();
 }
 
 /// Write the contents of a buffer into a disk sector.  Return only
@@ -196,7 +191,7 @@ SynchDisk::WriteSector(int sectorNumber, const char *data)
 {
     ASSERT(data != nullptr);
 
-    cacheLock->Acquire();
+    lock->Acquire();
     for (unsigned i = 0; i < CACHE_SIZE; i++) {
         if (cache[i].valid && cache[i].sector == sectorNumber) {
             if (!cache[i].dirty) {
@@ -206,7 +201,7 @@ SynchDisk::WriteSector(int sectorNumber, const char *data)
             }
             memcpy(cache[i].data, data, SECTOR_SIZE);
             cache[i].use = true;
-            cacheLock->Release();
+            lock->Release();
             return;
         }
     }
@@ -221,7 +216,7 @@ SynchDisk::WriteSector(int sectorNumber, const char *data)
     memcpy(cache[entry].data, data, SECTOR_SIZE);
     writeQ->Append(&cache[entry]);
     numCachedWrites++;
-    cacheLock->Release();
+    lock->Release();
 }
 
 /// Disk interrupt handler.  Wake up any thread waiting for the disk

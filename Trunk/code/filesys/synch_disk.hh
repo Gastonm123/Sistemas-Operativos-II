@@ -84,7 +84,6 @@ private:
 
     List<DiskCache*> *writeQ; ///< Writes must be processed in order.
     unsigned numCachedWrites;  ///< Number of cached writes.
-    Lock *cacheLock;
 };
 
 
