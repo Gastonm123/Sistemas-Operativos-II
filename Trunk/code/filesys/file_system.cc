@@ -115,8 +115,15 @@ FileSystem::FileSystem(bool format)
         // to hold the file data for the directory and bitmap.
 
         DEBUG('f', "Writing bitmap and directory back to disk.\n");
+
+        freeMapFile->LockFile();
+        rootDirFile->LockFile();
+
         freeMap->WriteBack(freeMapFile);     // flush changes to disk
         dir->WriteBack(rootDirFile);
+
+        freeMapFile->UnlockFile();
+        rootDirFile->UnlockFile();
 
         if (debug.IsEnabled('f')) {
             freeMap->Print();
