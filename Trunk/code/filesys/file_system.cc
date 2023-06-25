@@ -535,10 +535,17 @@ FileSystem::MakeDirectory(const char *name)
             if (success) {
                 // Everything worked, flush all changes back to disk.
                 h->WriteBack(sector);
+                delete h;
+                OpenFile* file = new OpenFile(sector);
+                Directory* childDirectory = new Directory(NUM_DIR_ENTRIES);
+                file->LockFile();
+                childDirectory->WriteBack(file);
+                file->UnlockFile();
                 freeMap->WriteBack(freeMapFile);
                 dir->WriteBack(dirFile);
+            } else {
+                delete h;
             }
-            delete h;
         }
         freeMapFile->UnlockFile();
         delete freeMap;
@@ -779,12 +786,10 @@ void FileSystem::Liberate(unsigned sector)
     Bitmap *freeMap = new Bitmap(NUM_SECTORS);
     freeMapFile->LockFile();
     freeMap->FetchFrom(freeMapFile);
-    freeMapFile->UnlockFile();
 
     fileH->Deallocate(freeMap);  // Remove data blocks.
     freeMap->Clear(sector);      // Remove header block.
 
-    freeMapFile->LockFile();
     freeMap->WriteBack(freeMapFile);
     freeMapFile->UnlockFile();
     delete freeMap;
@@ -805,7 +810,6 @@ FileSystem::ExtendFile(OpenFile* file, FileHeader* fileH, unsigned newSize)
     freeMap->FetchFrom(freeMapFile);
 
     bool result = fileH->Extend(freeMap, newSize);
-
     fileH->WriteBack(fileH->GetSector());
 
     freeMap->WriteBack(freeMapFile);
