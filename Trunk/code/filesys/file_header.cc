@@ -50,17 +50,7 @@ FileHeader::Allocate(unsigned headerSector, Bitmap *freeMap, unsigned fileSize, 
 
     /// The header sector is reserved beforehand, but the sectors containing
     /// indirect blocks are not.
-    unsigned numIndirect = 0; //< Sectors containing indirect blocks.
-
-    if (raw.numSectors > NUM_DIRECT) {
-        numIndirect += 1;
-    }
-    if (raw.numSectors > NUM_DIRECT + NUM_DATAPTR) {
-        numIndirect += DivRoundUp(raw.numSectors - NUM_DIRECT - NUM_DATAPTR,
-                                  NUM_DATAPTR) + 1;
-    }
-
-    ASSERT(numIndirect == ComputeNumberOfIndirectSectors(raw.numSectors));
+    unsigned numIndirect = ComputeNumberOfIndirectSectors(raw.numSectors); //< Sectors containing indirect blocks.
 
     if (freeMap->CountClear() < raw.numSectors + numIndirect) {
         return false;  // Not enough space.
@@ -291,15 +281,7 @@ FileHeader::Deallocate(Bitmap *freeMap)
 {
     ASSERT(freeMap != nullptr);
 
-    unsigned numIndirect = 0; //< Sectors containing indirect blocks.
-
-    if (raw.numSectors > NUM_DIRECT) {
-        numIndirect += 1;
-    }
-    if (raw.numSectors > NUM_DIRECT + NUM_DATAPTR) {
-        numIndirect += DivRoundUp(raw.numSectors - NUM_DIRECT - NUM_DATAPTR,
-                                  NUM_DATAPTR) + 1;
-    }
+    unsigned numIndirect = ComputeNumberOfIndirectSectors(raw.numSectors); //< Sectors containing indirect blocks.
 
     /// Deallocate indirect blocks first.
     unsigned *dataPtrList = nullptr;
