@@ -57,8 +57,14 @@ void
 Directory::FetchFrom(OpenFile *file)
 {
     ASSERT(file != nullptr);
-    file->ReadAtUnlocked((char *) raw.table,
-                 raw.tableSize * sizeof (DirectoryEntry), 0);
+
+    delete[] raw.table;
+
+    raw.tableSize = file->Length() / sizeof(DirectoryEntry);
+    raw.table = new DirectoryEntry[raw.tableSize];
+
+    file->ReadAtUnlocked(
+        (char *) raw.table, raw.tableSize * sizeof (DirectoryEntry), 0);
 }
 
 /// Write any modifications to the directory back to disk.
@@ -68,8 +74,8 @@ void
 Directory::WriteBack(OpenFile *file)
 {
     ASSERT(file != nullptr);
-    file->WriteAtUnlocked((char *) raw.table,
-                  raw.tableSize * sizeof (DirectoryEntry), 0);
+    file->WriteAtUnlocked(
+        (char *) raw.table, raw.tableSize * sizeof (DirectoryEntry), 0);
 }
 
 /// Look up file name in directory, and return its location in the table of
@@ -122,15 +128,39 @@ Directory::Add(const char *name, int newSector)
         return false;
     }
 
-    for (unsigned i = 0; i < raw.tableSize; i++) {
-        if (!raw.table[i].inUse) {
-            raw.table[i].inUse = true;
-            strncpy(raw.table[i].name, name, FILE_NAME_MAX_LEN);
-            raw.table[i].sector = newSector;
-            return true;
+    int idx = FindFreeEntry();
+
+    if (idx == -1) {
+        unsigned newTableSize = raw.tableSize + 10;
+
+        if (newTableSize * sizeof(DirectoryEntry) > MAX_FILE_SIZE) {
+            return false;
         }
+
+        DirectoryEntry* newTable = new DirectoryEntry[newTableSize];
+        for (int i = 0; i < newTableSize; ++i) {
+            newTable[i].inUse = false;
+        }
+
+        for (int i = 0; i < raw.tableSize; ++i) {
+            newTable[i] = raw.table[i];
+        }
+
+        delete[] raw.table;
+
+        raw.table = newTable;
+        raw.tableSize = newTableSize;
+
+        idx = FindFreeEntry();
+
+        ASSERT(idx != -1);
     }
-    return false;  // no space.  Fix when we have extensible files.
+
+    raw.table[idx].inUse = true;
+    strncpy(raw.table[idx].name, name, FILE_NAME_MAX_LEN);
+    raw.table[idx].sector = newSector;
+
+    return true;
 }
 
 /// Remove a file name from the directory.   Return true if successful;
@@ -199,3 +229,17 @@ Directory::Empty() const
     }
     return true;
 }
+
+/// Find an entry index that is not in use.
+/// returns -1 if there isn't any.
+int
+Directory::FindFreeEntry()
+{
+    for (int i = 0; i < raw.tableSize; i++) {
+        if (!raw.table[i].inUse) {
+            return i;
+        }
+    }
+    return -1;
+}
+

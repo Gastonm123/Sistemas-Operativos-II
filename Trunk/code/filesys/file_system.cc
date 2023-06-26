@@ -325,8 +325,10 @@ FileSystem::Create(const char *name, unsigned initialSize)
           // Find a sector to hold the file header.
         if (sector == -1) {
             success = false;  // No free block for file header.
+            freeMapFile->UnlockFile();
         } else if (!dir->Add(filename, sector)) {
             success = false;  // No space in directory.
+            freeMapFile->UnlockFile();
         } else {
             FileHeader *h = new FileHeader;
             success = h->Allocate(sector, freeMap, initialSize, false);
@@ -334,12 +336,17 @@ FileSystem::Create(const char *name, unsigned initialSize)
             if (success) {
                 // Everything worked, flush all changes back to disk.
                 h->WriteBack(sector);
+                delete h;
+
                 freeMap->WriteBack(freeMapFile);
+                freeMapFile->UnlockFile();
+
                 dir->WriteBack(dirFile);
+            } else {
+                delete h;
+                freeMapFile->UnlockFile();
             }
-            delete h;
         }
-        freeMapFile->UnlockFile();
         delete freeMap;
     }
     dirFile->UnlockFile();
@@ -950,9 +957,9 @@ CheckDirectory(const RawDirectory *rd, Bitmap *shadowMap)
 
     bool error = false;
     unsigned nameCount = 0;
-    const char *knownNames[NUM_DIR_ENTRIES];
+    const char** knownNames = new const char* [rd->tableSize];
 
-    for (unsigned i = 0; i < NUM_DIR_ENTRIES; i++) {
+    for (unsigned i = 0; i < rd->tableSize; i++) {
         DEBUG('f', "Checking direntry: %u.\n", i);
         const DirectoryEntry *e = &rd->table[i];
 
@@ -1077,7 +1084,7 @@ FileSystem::PrintDirectory(Directory *dir, bool recursive) {
 
     const RawDirectory *rd = dir->GetRaw(); 
 
-    for (unsigned i = 0; i < NUM_DIR_ENTRIES; i++) {
+    for (unsigned i = 0; i < rd->tableSize; i++) {
         const DirectoryEntry *e = &rd->table[i];
         if (e->inUse) {
             FileHeader *h = new FileHeader;

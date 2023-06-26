@@ -71,6 +71,8 @@ private:
     /// Find the index into the directory table corresponding to `name`.
     int FindIndex(const char *name);
 
+    int FindFreeEntry();
+
     RawDirectory raw;
 };
 
