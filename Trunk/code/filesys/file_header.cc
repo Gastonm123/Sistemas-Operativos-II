@@ -60,6 +60,8 @@ FileHeader::Allocate(unsigned headerSector, Bitmap *freeMap, unsigned fileSize, 
                                   NUM_DATAPTR) + 1;
     }
 
+    ASSERT(numIndirect == ComputeNumberOfIndirectSectors(raw.numSectors));
+
     if (freeMap->CountClear() < raw.numSectors + numIndirect) {
         return false;  // Not enough space.
     }
@@ -245,25 +247,41 @@ FileHeader::AllocateOneMoreSector(Bitmap* freeMap)
 unsigned
 FileHeader::ComputeTotalNumberOfSectors(unsigned numBytes)
 {
+    unsigned sectorsUsedForData = ComputeNumberOfDataSectors(numBytes);
+    unsigned sectorsUsedForPointers = ComputeNumberOfIndirectSectors(sectorsUsedForData);
+    return sectorsUsedForData + sectorsUsedForPointers;
+}
 
-    unsigned sectorsUsedForData = DivRoundUp(numBytes, SECTOR_SIZE);
+/// Compute number of sectors used for dataPtr and dataPtrPtr tables
+unsigned
+FileHeader::ComputeNumberOfIndirectSectors(unsigned sectorsUsedForData)
+{
 
     bool hasDataPtr = sectorsUsedForData > NUM_DIRECT;
     if (!hasDataPtr) {
-        return sectorsUsedForData;
+        return 0;
     }
 
     unsigned sectorsUsedForPointersToData = DivRoundUp(sectorsUsedForData, NUM_DATAPTR);
 
     bool hasDataPtrPtr = sectorsUsedForPointersToData > 1;
     if (!hasDataPtrPtr) {
-        return sectorsUsedForData + sectorsUsedForPointersToData;
+        return sectorsUsedForPointersToData;
     }
 
     unsigned sectorsUsedForPointersToPointers = 1;
 
-    return sectorsUsedForData + sectorsUsedForPointersToData + sectorsUsedForPointersToPointers;
+    return sectorsUsedForPointersToData + sectorsUsedForPointersToPointers;
 }
+
+/// Compute number of sectors required to hold numBytes bytes of data
+unsigned
+FileHeader::ComputeNumberOfDataSectors(unsigned numBytes)
+{
+    unsigned sectorsUsedForData = DivRoundUp(numBytes, SECTOR_SIZE);
+    return sectorsUsedForData;
+}
+
 
 /// De-allocate all the space allocated for data blocks for this file.
 ///

@@ -77,6 +77,8 @@ private:
     void AllocateOneMoreSector(Bitmap* freeMap);
 
     unsigned ComputeTotalNumberOfSectors(unsigned numBytes);
+    unsigned ComputeNumberOfIndirectSectors(unsigned numDataSectors);
+    unsigned ComputeNumberOfDataSectors(unsigned numBytes);
 
     unsigned sectorNumber;
 
